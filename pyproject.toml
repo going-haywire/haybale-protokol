@@ -37,3 +37,20 @@ editable = true
 [tool.uv.sources.haybale-haystack]
 path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-haystack"
 editable = true
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-timeout", "ruff==0.12.12", "mypy==2.1.0"]
+
+[tool.ruff]
+line-length = 109
+
+[tool.ruff.lint]
+extend-select = ["E501", "PT", "B", "TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 30
+markers = ["integration: needs the full library system"]
