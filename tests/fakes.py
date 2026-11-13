@@ -57,6 +57,9 @@ class FakeDriver:
         self.connections.append(connection)
         return connection
 
+    def line_options(self, gate: Gate) -> dict[str, object]:
+        return {}
+
     def cache_key(self, message: Message) -> Hashable:
         return message.address
 

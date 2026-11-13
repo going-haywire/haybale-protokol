@@ -158,9 +158,13 @@ class ProtokolState(AppState):
                 except ValueError as exc:
                     return f"gate '{gate_name}': {exc}"
                 line = Line(key, connection, driver.cache_key, self.grace_s)
+                line.gate = gate
                 line.on_closed = self._forget
                 line.on_changed = lambda _line: self._changed()
                 self._lines[key] = line
+            conflict = _line_conflict(driver, gate, line)
+            if conflict is not None:
+                return conflict
             try:
                 token = line.add_user(subscriber)
             except LineOpenError:
@@ -202,6 +206,18 @@ class ProtokolState(AppState):
         if loop is None or not loop.is_running():
             return
         loop.call_soon_threadsafe(self._signal_emit, ProtokolChanged())
+
+
+def _line_conflict(driver: ProtocolDriver, gate: Gate, line: Line) -> str | None:
+    """Why ``gate`` cannot share ``line`` with the gate that opened it, or ``None``."""
+    first = line.gate
+    if first is None or first.name == gate.name:
+        return None
+    mine, theirs = driver.line_options(gate), driver.line_options(first)
+    for option in sorted(set(mine) | set(theirs)):
+        if mine.get(option) != theirs.get(option):
+            return f"gate '{gate.name}': {option} differs from gate '{first.name}' on the same line"
+    return None
 
 
 def _grace_from_settings() -> float:

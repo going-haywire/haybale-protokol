@@ -60,7 +60,7 @@ def test_line_keys() -> None:
         ("in", {}, "port"),
         ("in", {"port": "x"}, "port"),
         ("out", {"port": 1}, "host"),
-        ("in", {"port": 1, "transport": "tcp"}, "tcp"),
+        ("in", {"port": 1, "transport": "sctp"}, "sctp"),
         ("two-way", {"port": 1}, "two-way"),
     ],
 )

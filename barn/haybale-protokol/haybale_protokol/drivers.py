@@ -75,6 +75,10 @@ class ProtocolDriver(Protocol):
         """Build the (not yet started) Connection for the Line ``key``."""
         ...
 
+    def line_options(self, gate: Gate) -> Mapping[str, Any]:
+        """Options every gate sharing a Line must agree on (a TCP framing); usually none."""
+        ...
+
     def cache_key(self, message: Message) -> Hashable:
         """Return what the Line cache keeps the last message per (address, channel, axis)."""
         ...

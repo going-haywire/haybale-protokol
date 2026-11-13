@@ -14,6 +14,7 @@ import threading
 from collections.abc import Callable, Hashable
 
 from haybale_protokol.drivers import Connection, LineKey, Message
+from haybale_protokol.gates import Gate
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,8 @@ class Line:
         self._closed = False
         self._error: str | None = None
         self._failed_subscribers: set[int] = set()
+        self.gate: Gate | None = None
+        """The first gate that opened the Line; later gates must agree with its line options."""
         self.on_closed: Callable[[Line], None] | None = None
         """Called once, after the Line closed."""
         self.on_changed: Callable[[Line], None] | None = None

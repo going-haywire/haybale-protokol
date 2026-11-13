@@ -147,3 +147,29 @@ def test_grace_comes_from_settings(library_system: Any) -> None:
 
     assert float(ProtokolSettings().grace_period_s) == 2.0, "read from the setting, not the fallback"
     assert state.grace_s() == 2.0
+
+
+class FramingDriver(FakeDriver):
+    def line_options(self, gate: Gate) -> dict[str, Any]:
+        return {"framing": gate.options.get("framing", "1.1")}
+
+
+def test_framing_conflict_is_status(tmp_path: Path) -> None:
+    state = ProtokolState()
+    state.project_root = tmp_path
+    state.grace_s = lambda: 0.0
+    state.register_driver(FramingDriver())
+    _gates(
+        tmp_path,
+        Gate("a", "fake", "in", options={"port": 1, "framing": "1.0"}),
+        Gate("b", "fake", "in", options={"port": 1, "framing": "1.1"}),
+        Gate("c", "fake", "in", options={"port": 1, "framing": "1.0"}),
+    )
+    first = state.use("a", "in")
+    assert isinstance(first, LineUse)
+    assert state.use("b", "in") == "gate 'b': framing differs from gate 'a' on the same line"
+    same = state.use("c", "in")
+    assert isinstance(same, LineUse)
+    assert same.line is first.line
+    first.release()
+    same.release()

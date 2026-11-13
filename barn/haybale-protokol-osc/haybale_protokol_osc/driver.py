@@ -17,7 +17,7 @@ import logging
 import socket
 import threading
 import time
-from collections.abc import Callable, Hashable, Iterator
+from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
 from pythonosc.osc_bundle import OscBundle
@@ -27,6 +27,7 @@ from pythonosc.osc_message_builder import OscMessageBuilder
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import Connection, LineKey, Message
 from haybale_protokol.gates import Gate
+from haybale_protokol_osc.framing import FRAMINGS
 
 logger = logging.getLogger(__name__)
 
@@ -43,28 +44,46 @@ class OscDriver:
 
     def line_key(self, gate: Gate, device: Device | None) -> LineKey:
         transport = gate.options.get("transport", "udp")
-        if transport != "udp":
-            raise ValueError(f"OSC transport {transport!r} is not supported yet; use udp")
-        if gate.direction == "two-way":
-            raise ValueError("an OSC UDP gate is in or out, never two-way")
         port = gate.options.get("port")
         if port is None:
             raise ValueError("OSC gate needs a port")
         if not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
             raise ValueError(f"OSC port must be a number from 1 to 65535, not {port!r}")
+        if transport == "tcp":
+            return self._tcp_line_key(gate, port)
+        if transport != "udp":
+            raise ValueError(f"OSC transport {transport!r} is unknown; use udp or tcp")
+        if gate.direction == "two-way":
+            raise ValueError("an OSC UDP gate is in or out, never two-way")
         if gate.direction == "in":
-            return LineKey("osc", f"udp-in {gate.options.get('bind', '0.0.0.0')}:{port}")
-        host = gate.options.get("host")
-        if not isinstance(host, str) or not host:
-            raise ValueError("OSC output gate needs a host")
-        return LineKey("osc", f"udp-out {host}:{port}")
+            return LineKey("osc", f"udp-in {_text_option(gate, 'bind', '0.0.0.0')}:{port}")
+        return LineKey("osc", f"udp-out {_text_option(gate, 'host')}:{port}")
+
+    def _tcp_line_key(self, gate: Gate, port: int) -> LineKey:
+        role = gate.options.get("role", "client")
+        if role not in ("client", "server"):
+            raise ValueError(f"OSC TCP role {role!r} is unknown; use client or server")
+        framing = gate.options.get("framing", "1.1")
+        if framing not in FRAMINGS:
+            raise ValueError(f"OSC TCP framing {framing!r} is unknown; use one of {FRAMINGS}")
+        if role == "server":
+            return LineKey("osc", f"tcp-server {_text_option(gate, 'bind', '0.0.0.0')}:{port}")
+        return LineKey("osc", f"tcp-client {_text_option(gate, 'host')}:{port}")
+
+    def line_options(self, gate: Gate) -> Mapping[str, Any]:
+        """Options every gate on one Line must agree on: the framing of a TCP Line."""
+        if gate.options.get("transport", "udp") == "tcp":
+            return {"framing": gate.options.get("framing", "1.1")}
+        return {}
 
     def open(self, key: LineKey, gate: Gate, device: Device | None) -> Connection:
         kind, _, where = key.address.partition(" ")
         host, _, port = where.rpartition(":")
         if kind == "udp-in":
             return UdpInConnection(host, int(port))
-        return UdpOutConnection(host, int(port))
+        if kind == "udp-out":
+            return UdpOutConnection(host, int(port))
+        raise ValueError("OSC over TCP is not available yet")
 
     def cache_key(self, message: Message) -> Hashable:
         return message.address
@@ -190,6 +209,20 @@ def build_message(address: str, args: tuple[Any, ...], types: str | None) -> byt
         for arg, tag in zip(args, types, strict=True):
             builder.add_arg(arg, tag)
     return bytes(builder.build().dgram)
+
+
+def _text_option(gate: Gate, key: str, default: str | None = None) -> str:
+    """The text option ``key`` of ``gate``.
+
+    Raises:
+        ValueError: It is missing (with no default), empty, or not text.
+    """
+    value = gate.options.get(key, default)
+    if value is None:
+        raise ValueError(f"OSC gate needs a {key}")
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"OSC gate {key} must be text, not {value!r}")
+    return value
 
 
 def _split(data: bytes, timetag: float | None) -> Iterator[tuple[OscMessage, float | None]]:
