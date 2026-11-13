@@ -10,9 +10,9 @@ name = "haybale-protokol"  # pip distribution name; also prefixes every
 version = "0.0.1"  # PEP 440, no "v" — canon here; pyproject.toml carries the synced copy
 
 # ── display ───────────────────────────────────────────────────────────────
-label = "Haybale Protokol"  # human display name
-description = "Local library for haybale-protokol project"  # one line
-tags = ["experimental", "project-local"]  # filter tags in the library browser
+label = "Protokol"  # human display name
+description = "Control protocols for graphs: gates, shared lines and the base for OSC, MIDI and gamepad"  # one line
+tags = ["osc", "midi", "gamepad", "control", "protocol"]  # filter tags in the library browser
 
 # ── behaviour ─────────────────────────────────────────────────────────────
 # os = ["macos", "linux"]  # macos/linux/windows; empty/absent = every platform
