@@ -90,7 +90,7 @@ class OscDriver:
         framing = gate.options.get("framing", "1.1")
         if kind == "tcp-client":
             return TcpClientConnection(host, int(port), framing)
-        raise ValueError("an OSC TCP server is not available yet")
+        return TcpServerConnection(host, int(port), framing)
 
     def cache_key(self, message: Message) -> Hashable:
         return message.address
@@ -292,6 +292,122 @@ class TcpClientConnection:
             return
         self.attempts += 1
         self._closing.wait(BACKOFF_S[min(self.attempts, len(BACKOFF_S)) - 1])
+
+
+class TcpServerConnection:
+    """Listens on one TCP port; every peer's messages are delivered, and a send goes to all peers."""
+
+    def __init__(self, bind: str, port: int, framing: Framing) -> None:
+        self.bind = bind
+        self.port = port
+        self.framing = framing
+        self.sent = 0
+        self.dropped = 0
+        self.bad = 0
+        self.thread: threading.Thread | None = None
+        self._listener: socket.socket | None = None
+        self._peers: dict[socket.socket, threading.Thread] = {}
+        self._lock = threading.Lock()
+        self._closing = threading.Event()
+
+    @property
+    def peers(self) -> int:
+        with self._lock:
+            return len(self._peers)
+
+    @property
+    def status(self) -> str:
+        text = (
+            f"serving on tcp {self.bind}:{self.port} · {self.peers} peers"
+            f" · sent {self.sent} · dropped {self.dropped}"
+        )
+        return f"{text} · {self.bad} bad" if self.bad else text
+
+    def start(self, deliver: Callable[[Message], None]) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            listener.bind((self.bind, self.port))
+            listener.listen(8)
+        except OSError:
+            listener.close()
+            raise
+        listener.settimeout(POLL_S)
+        self.port = int(listener.getsockname()[1])
+        self._listener = listener
+        name = f"protokol-osc-tcp-server-{self.port}"
+        self.thread = threading.Thread(target=self._accept, args=(listener, deliver), name=name, daemon=True)
+        self.thread.start()
+
+    def send(self, message: Message) -> bool:
+        try:
+            packet = build_message(message.address, message.args, message.extra.get("types"))
+        except Exception as exc:
+            self.dropped += 1
+            logger.debug("OSC send on tcp %s:%s dropped: %s", self.bind, self.port, exc)
+            return False
+        frame = encode_frame(packet, self.framing)
+        with self._lock:
+            peers = list(self._peers)
+        delivered = False
+        for peer in peers:
+            try:
+                peer.sendall(frame)
+                delivered = True
+            except OSError:
+                _shutdown(peer)
+        if delivered:
+            self.sent += 1
+        else:
+            self.dropped += 1
+        return delivered
+
+    def close(self) -> None:
+        self._closing.set()
+        with self._lock:
+            peers = dict(self._peers)
+        for peer in peers:
+            _shutdown(peer)
+        if self.thread is not None and self.thread is not threading.current_thread():
+            self.thread.join(timeout=2 * POLL_S + 1.0)
+        for thread in peers.values():
+            if thread is not threading.current_thread():
+                thread.join(timeout=2 * POLL_S + 1.0)
+        if self._listener is not None:
+            self._listener.close()
+            self._listener = None
+
+    def _accept(self, listener: socket.socket, deliver: Callable[[Message], None]) -> None:
+        number = 0
+        while not self._closing.is_set():
+            try:
+                peer, _address = listener.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                if not self._closing.is_set():
+                    logger.exception("OSC line on tcp %s:%s stopped accepting", self.bind, self.port)
+                return
+            peer.settimeout(POLL_S)
+            number += 1
+            thread = threading.Thread(
+                target=self._read,
+                args=(peer, deliver),
+                name=f"protokol-osc-tcp-peer-{self.port}-{number}",
+                daemon=True,
+            )
+            with self._lock:
+                self._peers[peer] = thread
+            thread.start()
+
+    def _read(self, peer: socket.socket, deliver: Callable[[Message], None]) -> None:
+        bad = 0
+        try:
+            bad = read_stream(peer, self.framing, deliver, self._closing)
+        finally:
+            with self._lock:
+                self.bad += bad
+                self._peers.pop(peer, None)
+            peer.close()
 
 
 def read_stream(
