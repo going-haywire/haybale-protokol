@@ -27,7 +27,7 @@ from pythonosc.osc_message_builder import OscMessageBuilder
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import Connection, LineKey, Message
 from haybale_protokol.gates import Gate
-from haybale_protokol_osc.framing import FRAMINGS
+from haybale_protokol_osc.framing import FRAMINGS, FrameError, FrameReader, Framing, encode_frame
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 POLL_S = 0.2
 #: Largest datagram read; bigger ones are truncated by the OS and fail to parse.
 MAX_DATAGRAM = 65536
+#: Seconds a TCP client waits between connection attempts; the last step repeats.
+BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 5.0)
+#: Longest a TCP connection attempt may take, so ``close()`` stays quick.
+CONNECT_TIMEOUT_S = 0.5
 
 
 class OscDriver:
@@ -83,7 +87,10 @@ class OscDriver:
             return UdpInConnection(host, int(port))
         if kind == "udp-out":
             return UdpOutConnection(host, int(port))
-        raise ValueError("OSC over TCP is not available yet")
+        framing = gate.options.get("framing", "1.1")
+        if kind == "tcp-client":
+            return TcpClientConnection(host, int(port), framing)
+        raise ValueError("an OSC TCP server is not available yet")
 
     def cache_key(self, message: Message) -> Hashable:
         return message.address
@@ -190,6 +197,144 @@ class UdpOutConnection:
         if self._sock is not None:
             self._sock.close()
             self._sock = None
+
+
+class TcpClientConnection:
+    """Connects to one TCP peer and keeps reconnecting, with backoff, while the Line is open.
+
+    Sends while disconnected are dropped and counted, never queued.
+    """
+
+    def __init__(self, host: str, port: int, framing: Framing) -> None:
+        self.host = host
+        self.port = port
+        self.framing = framing
+        self.sent = 0
+        self.dropped = 0
+        self.bad = 0
+        self.attempts = 0
+        """Failed or lost connections since the last good one."""
+        self.thread: threading.Thread | None = None
+        self._sock: socket.socket | None = None
+        self._send_lock = threading.Lock()
+        self._closing = threading.Event()
+
+    @property
+    def connected(self) -> bool:
+        return self._sock is not None
+
+    @property
+    def status(self) -> str:
+        if self.connected:
+            state = f"connected to tcp {self.host}:{self.port}"
+        elif self.attempts:
+            state = f"reconnecting ({self.attempts}) to tcp {self.host}:{self.port}"
+        else:
+            state = f"connecting to tcp {self.host}:{self.port}"
+        text = f"{state} · sent {self.sent} · dropped {self.dropped}"
+        return f"{text} · {self.bad} bad" if self.bad else text
+
+    def start(self, deliver: Callable[[Message], None]) -> None:
+        self.thread = threading.Thread(
+            target=self._run, args=(deliver,), name=f"protokol-osc-tcp-client-{self.port}", daemon=True
+        )
+        self.thread.start()
+
+    def send(self, message: Message) -> bool:
+        with self._send_lock:
+            sock = self._sock
+            if sock is None:
+                self.dropped += 1
+                return False
+            try:
+                packet = build_message(message.address, message.args, message.extra.get("types"))
+                sock.sendall(encode_frame(packet, self.framing))
+            except OSError:
+                self.dropped += 1
+                _shutdown(sock)
+                return False
+            except Exception as exc:
+                self.dropped += 1
+                logger.debug("OSC send to %s:%s dropped: %s", self.host, self.port, exc)
+                return False
+            self.sent += 1
+            return True
+
+    def close(self) -> None:
+        self._closing.set()
+        with self._send_lock:
+            if self._sock is not None:
+                _shutdown(self._sock)
+        if self.thread is not None and self.thread is not threading.current_thread():
+            self.thread.join(timeout=CONNECT_TIMEOUT_S + 2 * POLL_S + 1.0)
+
+    def _run(self, deliver: Callable[[Message], None]) -> None:
+        while not self._closing.is_set():
+            try:
+                sock = socket.create_connection((self.host, self.port), timeout=CONNECT_TIMEOUT_S)
+            except OSError:
+                self._back_off()
+                continue
+            sock.settimeout(POLL_S)
+            with self._send_lock:
+                self._sock = sock
+                self.attempts = 0
+            try:
+                self.bad += read_stream(sock, self.framing, deliver, self._closing)
+            finally:
+                with self._send_lock:
+                    self._sock = None
+                sock.close()
+            self._back_off()
+
+    def _back_off(self) -> None:
+        if self._closing.is_set():
+            return
+        self.attempts += 1
+        self._closing.wait(BACKOFF_S[min(self.attempts, len(BACKOFF_S)) - 1])
+
+
+def read_stream(
+    sock: socket.socket, framing: Framing, deliver: Callable[[Message], None], closing: threading.Event
+) -> int:
+    """Deliver every message on ``sock`` until the peer leaves, the stream breaks, or ``closing`` is set.
+
+    Returns:
+        How many bad packets were seen; a broken frame counts one and ends the stream.
+    """
+    reader = FrameReader(framing)
+    bad = 0
+    while not closing.is_set():
+        try:
+            data = sock.recv(MAX_DATAGRAM)
+        except TimeoutError:
+            continue
+        except OSError:
+            return bad
+        if not data:
+            return bad
+        try:
+            packets = reader.feed(data)
+        except FrameError:
+            return bad + 1
+        now = time.time()
+        for packet in packets:
+            try:
+                messages = list(_split(packet, None))
+            except Exception:
+                bad += 1
+                continue
+            for message, timetag in messages:
+                extra = {"timetag": timetag} if timetag is not None else {}
+                deliver(Message(message.address, tuple(message.params), now, extra))
+    return bad
+
+
+def _shutdown(sock: socket.socket) -> None:
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
 
 
 def build_message(address: str, args: tuple[Any, ...], types: str | None) -> bytes:
