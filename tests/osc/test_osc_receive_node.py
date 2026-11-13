@@ -46,28 +46,30 @@ def _ports(wrapper: Any) -> list[str]:
 
 def test_args_list_by_default(graph: BaseGraph) -> None:
     wrapper = _receive(graph)
-    assert _ports(wrapper) == ["args"]
+    assert _ports(wrapper) == ["args", "arg_1"]
+    assert wrapper.node.ports["arg_1"].type_cls.__name__ == "ADD"
 
 
 def test_shape_builds_typed_outlets(graph: BaseGraph) -> None:
     wrapper = _receive(graph, shape="f _ vi2")
-    assert _ports(wrapper) == ["arg_1", "arg_2"]
+    assert _ports(wrapper) == ["arg_1", "arg_2", "arg_3"]
     assert wrapper.node.ports["arg_1"].type_cls.__name__ == "FLOAT"
     assert wrapper.node.ports["arg_2"].type_cls.__name__ == "VEC2I"
+    assert wrapper.node.ports["arg_3"].type_cls.__name__ == "ADD"
     wrapper.node.ports["arg_shape"].set_value("")
-    assert _ports(wrapper) == ["args"]
+    assert [p for p in _ports(wrapper) if wrapper.node.ports[p].type_cls.__name__ != "ADD"] == ["args"]
 
 
 def test_pattern_builds_capture_outlets(graph: BaseGraph) -> None:
     wrapper = _receive(graph, address="/blob/*/{x,y}")
-    assert _ports(wrapper) == ["args", "match_1", "match_2"]
+    assert _ports(wrapper) == ["args", "arg_1", "match_1", "match_2"]
     assert wrapper.node.ports["match_1"].type_cls.__name__ == "ADD"
 
 
 def test_invalid_shape_keeps_ports(graph: BaseGraph) -> None:
     wrapper = _receive(graph, shape="f")
     wrapper.node.ports["arg_shape"].set_value("f q")
-    assert _ports(wrapper) == ["arg_1"]
+    assert _ports(wrapper) == ["arg_1", "arg_2"]
     assert "not applied" in str(wrapper.node.value("status"))
 
 
@@ -143,7 +145,7 @@ def test_save_reload_keeps_ports(graph: BaseGraph) -> None:
     assert loaded.load_from_dict(graph.to_dict())
     node = loaded.get_node_wrapper(wrapper.node_id).node
     assert node.value("arg_shape") == "f i"
-    assert sorted(p for p in node.ports if _PIN.fullmatch(p)) == ["arg_1", "arg_2", "match_1"]
+    assert sorted(p for p in node.ports if _PIN.fullmatch(p)) == ["arg_1", "arg_2", "arg_3", "match_1"]
 
 
 @pytest.mark.parametrize(

@@ -14,8 +14,9 @@ from haywire.core.types import PortOrigin
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
+from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.pattern import AddressPattern, compile_pattern
-from haybale_protokol_osc.shape import ShapeError, Token, decode, parse_shape
+from haybale_protokol_osc.shape import ShapeError, Token, decode
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ _REBUILT = r"^(args|arg_\d+|match_\d+|timetag|status)$"
     search_tags=["osc", "receive", "control", "network", "protokol", "touchosc"],
     node_type=NodeType.EVENT,
 )
-class OscReceiveNode(BaseNode):
+class OscReceiveNode(ArgPins, BaseNode):
     """Runs its flow for each OSC message on its gate that matches its address.
 
     `Gate` names an input gate in the project's Gate file (`.haywire/protokol.toml`). `Address`
@@ -51,6 +52,7 @@ class OscReceiveNode(BaseNode):
         status: The gate's state and how many messages were skipped
     """
 
+    receive = True
     dispatch = bag(ReceiveDispatchSettings)
 
     def init(self) -> None:
@@ -76,7 +78,7 @@ class OscReceiveNode(BaseNode):
         self._binding: ReceiveBinding | None = None
         self._skipped = 0
         self._pattern = compile_pattern("")
-        self._tokens: list[Token] | None = None
+        self._decode_tokens: list[Token] | None = None
         self._read_config()
         self._subscribe()
 
@@ -90,7 +92,7 @@ class OscReceiveNode(BaseNode):
         """Rebuild the argument and capture outlets after the address or Arg shape changed."""
         try:
             pattern = compile_pattern(str(self.value("address") or ""))
-            tokens = parse_shape(str(self.value("arg_shape") or ""), receive=True)
+            tokens = self._tokens()
         except (ValueError, ShapeError) as exc:
             self.post_value("status", f"not applied: {exc}")
             return
@@ -117,10 +119,10 @@ class OscReceiveNode(BaseNode):
             self.add(self._capture_spec(port.id, inlet.stored_type, PortOrigin.RESOLVED))
 
     def release_pins(self, port_ids: list[str]) -> list[str]:
-        """A capture outlet whose last edge was deleted turns back into a bare `ADD`."""
+        """Grown argument pins go with their edge; a capture outlet left bare turns back into `ADD`."""
         from haywire.barn.builtin.types import ADD
 
-        released: list[str] = []
+        released = ArgPins.release_pins(self, [p for p in port_ids if ARG_ID.fullmatch(p)])
         for port_id in port_ids:
             port = self.ports.get(port_id)
             if port is None or not port_id.startswith("match_") or port.is_linked():
@@ -133,6 +135,7 @@ class OscReceiveNode(BaseNode):
         return released
 
     def restore_pins(self, port_ids: list[str]) -> None:
+        ArgPins.restore_pins(self, [p for p in port_ids if ARG_ID.fullmatch(p)])
         restored = getattr(self, "_restored_types", {})
         for port_id in port_ids:
             type_cls = restored.pop(port_id, None)
@@ -142,16 +145,12 @@ class OscReceiveNode(BaseNode):
 
     def _add_rebuilt_ports(self, pattern: AddressPattern, tokens: list[Token], kept: dict[str, Any]) -> None:
         from haywire.barn.builtin.types import ADD, FLOAT, STRING
-        from haywire.barn.builtin import types as builtin
 
-        from haybale_core.types.specs import BYTES, LIST
+        from haybale_core.types.specs import LIST
 
-        named = [token for token in tokens if token.haywire_type is not None]
-        if not named:
+        if not any(token.haywire_type for token in tokens):
             self.add(LIST.as_outlet("args", label="Args", description="Every argument of the message"))
-        for index, token in enumerate(named, start=1):
-            type_cls = BYTES if token.haywire_type == "BYTES" else getattr(builtin, str(token.haywire_type))
-            self.add(type_cls.as_outlet(f"arg_{index}", label=f"{index}: {token.text}"))
+        self._add_arg_ports(tokens)
         for index in range(1, pattern.captures + 1):
             port_id = f"match_{index}"
             type_cls = kept.get(port_id)
@@ -159,6 +158,9 @@ class OscReceiveNode(BaseNode):
             self.add(self._capture_spec(port_id, type_cls or ADD, origin))
         self.add(FLOAT.as_outlet("timetag", label="Timetag", default=0.0))
         self.add(STRING.as_outlet("status", label="Status", default=""))
+
+    def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:
+        return type_cls.as_outlet(port_id, label=label, on_connect="hb_grow", origin=origin)
 
     def _capture_spec(self, port_id: str, type_cls: Any, origin: PortOrigin) -> Any:
         index = port_id.removeprefix("match_")
@@ -201,9 +203,8 @@ class OscReceiveNode(BaseNode):
         if "args" in self.ports:
             self.out("args", list(values))
         else:
-            for index, value in enumerate(values, start=1):
-                if f"arg_{index}" in self.ports:
-                    self.out(f"arg_{index}", value)
+            for port, value in zip(self._arg_ports(), values, strict=False):
+                self.out(port.id, value)
         problems = self._write_captures(payload["captures"])
         self.out("timetag", float(payload["timetag"] or 0.0))
         self.out("status", self._status(problems))
@@ -211,7 +212,7 @@ class OscReceiveNode(BaseNode):
 
     def _accept(self, message: Message) -> dict[str, Any] | None:
         with self._lock:
-            pattern, tokens = self._pattern, self._tokens
+            pattern, tokens = self._pattern, self._decode_tokens
         captures = pattern.match(message.address)
         if captures is None:
             return None
@@ -252,12 +253,12 @@ class OscReceiveNode(BaseNode):
     def _read_config(self) -> None:
         try:
             pattern = compile_pattern(str(self.value("address") or ""))
-            tokens = parse_shape(str(self.value("arg_shape") or ""), receive=True)
+            tokens = self._tokens()
         except (ValueError, ShapeError):
             return
         with self._lock:
             self._pattern = pattern
-            self._tokens = tokens if any(t.haywire_type for t in tokens) else None
+            self._decode_tokens = tokens if any(t.haywire_type for t in tokens) else None
 
     def _subscribe(self) -> None:
         queue_mode, size, _start = resolve_dispatch(self.dispatch, stream=True)

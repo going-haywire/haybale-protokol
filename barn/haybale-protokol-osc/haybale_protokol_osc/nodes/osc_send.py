@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import time
 from typing import Any
 
@@ -13,9 +12,8 @@ from haywire.core.types import PortOrigin
 from haybale_protokol.drivers import Message
 from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.states.protokol_state import LineUse
-from haybale_protokol_osc.shape import ShapeError, encode, parse_shape, token_for_type
-
-_ARG = re.compile(r"arg_(\d+)")
+from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
+from haybale_protokol_osc.shape import ShapeError, encode
 
 
 @node(
@@ -25,7 +23,7 @@ _ARG = re.compile(r"arg_(\d+)")
     search_tags=["osc", "send", "control", "network", "protokol", "touchosc"],
     node_type=NodeType.CONTROL,
 )
-class OscSendNode(BaseNode):
+class OscSendNode(ArgPins, BaseNode):
     """Sends `Address` with one argument per argument inlet, in inlet order, to its gate.
 
     `Gate` names an output gate in the project's Gate file. Connect anything to the empty
@@ -52,7 +50,7 @@ class OscSendNode(BaseNode):
         )
         self.add(EXEC.as_inlet("exec", label="Send"))
         self.add(STRING.as_inlet("address", label="Address", default="/"))
-        self.add(self._arg_spec(1, ADD, PortOrigin.DECLARED))
+        self.add(self._arg_spec("arg_1", ADD, PortOrigin.DECLARED, "+"))
         self.add(EXEC.as_outlet("next", label="Next"))
         self.add(STRING.as_outlet("shape", label="Shape", default=""))
         self.add(STRING.as_outlet("status", label="Status", default=""))
@@ -67,52 +65,16 @@ class OscSendNode(BaseNode):
 
     def hb_rebuild(self, *_args: Any) -> None:
         """Rebuild the argument inlets from the Arg shape; an invalid shape changes nothing."""
-        from haywire.barn.builtin import types as builtin
-        from haywire.barn.builtin.types import ADD
-
-        from haybale_core.types.specs import BYTES
-
         try:
-            tokens = parse_shape(str(self.value("arg_shape") or ""), receive=False)
+            tokens = self._tokens()
         except ShapeError as exc:
             self.post_value("status", f"not applied: {exc}")
             return
-        with self.rejig(include=_ARG.pattern):
-            for index, token in enumerate(tokens, start=1):
-                name = str(token.haywire_type)
-                type_cls = BYTES if name == "BYTES" else getattr(builtin, name)
-                self.add(self._arg_spec(index, type_cls, PortOrigin.RESOLVED, token.text))
-            self.add(self._arg_spec(len(tokens) + 1, ADD, PortOrigin.DECLARED))
+        with self.rejig(include=ARG_ID.pattern):
+            self._add_arg_ports(tokens)
 
-    def hb_resolve(self, port: Any, edge_wrapper: Any) -> None:
-        """An edge on the empty slot adds an argument of the edge's type to the Arg shape."""
-        from haywire.barn.builtin.types import ADD
-
-        if port.type_cls is None or not issubclass(port.type_cls, ADD):
-            return
-        outlet = edge_wrapper._outlet_port
-        if outlet is None:
-            return
-        token = token_for_type(getattr(outlet.stored_type, "__name__", ""))
-        if token is None:
-            self.post_value("status", f"OSC cannot carry {outlet.stored_type.__name__}")
-            return
-        shape = str(self.value("arg_shape") or "").split()
-        self.ports["arg_shape"].set_value(" ".join([*shape, token]))
-
-    def _arg_spec(self, index: int, type_cls: Any, origin: PortOrigin, token: str = "") -> Any:
-        label = f"{index}: {token}" if token else "+"
-        return type_cls.as_inlet(f"arg_{index}", label=label, on_connect="hb_resolve", origin=origin)
-
-    def _arg_ports(self) -> list[Any]:
-        from haywire.barn.builtin.types import ADD
-
-        ports = [
-            port
-            for port_id, port in self.ports.items()
-            if _ARG.fullmatch(port_id) and not issubclass(port.type_cls, ADD)
-        ]
-        return sorted(ports, key=lambda port: port.order)
+    def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:
+        return type_cls.as_inlet(port_id, label=label, on_connect="hb_grow", origin=origin)
 
     # -- running -----------------------------------------------------------------
 
@@ -132,7 +94,7 @@ class OscSendNode(BaseNode):
     def worker(self, context: ExecutionContext) -> str | None:
         if self._use is not None:
             try:
-                tokens = parse_shape(str(self.value("arg_shape") or ""), receive=False)
+                tokens = self._tokens()
                 tags, args = encode(tokens, [self.value(port.id) for port in self._arg_ports()])
             except ShapeError as exc:
                 self._dropped += 1
