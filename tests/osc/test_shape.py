@@ -100,3 +100,14 @@ def test_infer_shape() -> None:
     vectors = [Vec2i([1, 2]), Vec3f([1.0, 2.0, 3.0]), Mat3([[0] * 3] * 3)]
     values = [0.5, 3, True, "s", b"b", ColorStr("#ffffff"), *vectors]
     assert infer_shape(values) == "f i T s b r vi2 vf3 m3"
+
+
+@pytest.mark.parametrize(
+    ("type_name", "token"),
+    [("FLOAT", "f"), ("INT", "i"), ("BOOL", "T"), ("STRING", "s"), ("BYTES", "b"), ("COLOR", "r"),
+     ("VEC3F", "vf3"), ("VEC2I", "vi2"), ("MAT4", "m4"), ("AUDIO", None)],
+)
+def test_token_for_type(type_name: str, token: str | None) -> None:
+    from haybale_protokol_osc.shape import token_for_type
+
+    assert token_for_type(type_name) == token

@@ -255,3 +255,19 @@ def _require_float(index: int, value: Any) -> float:
     if result is None:
         raise ShapeError(f"arg {index}: needs a number, not {type(value).__name__}")
     return result
+
+
+_TYPE_TOKENS = {
+    "INT": "i", "FLOAT": "f", "STRING": "s", "BYTES": "b",
+    "BOOL": "T", "COLOR": "r", "MAT3": "m3", "MAT4": "m4",
+}
+
+
+def token_for_type(type_name: str) -> str | None:
+    """The default token for a pin of builtin type ``type_name``, ``None`` if OSC cannot carry it."""
+    if type_name in _TYPE_TOKENS:
+        return _TYPE_TOKENS[type_name]
+    vector = re.fullmatch(r"VEC([234])([IF])", type_name)
+    if vector is not None:
+        return f"v{vector.group(2).lower()}{vector.group(1)}"
+    return None
