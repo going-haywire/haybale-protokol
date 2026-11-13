@@ -265,3 +265,9 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
   or control node's outlet from another flow; `set_node_type` in the node canon. (`ExternalEvent` dropped: check 1 chose
   `CallbackEvent`, which needs no new doc.)
 - **Proposed for core:** a `QUAT` type.
+- **Proposed for core, last slice:** a node hook pair for pin-menu removal,
+  `on_port_removed(port_id, spec)` from `remove_port()` and `on_port_restored(port_id)` from
+  `RemovePortAction` undo, so OSC nodes rewrite their Arg shape (own state only: text and
+  store, no pin rebuild; argument pin labels lose their position numbers). Until then a
+  removed argument pin shows "pins and Arg shape differ: retype the Arg shape". Deferred by
+  the owner until haywire-repo's workflow redesign lands; it is the last slice of this work.

@@ -303,3 +303,7 @@ Exact hooks depend on Tasks 3 and 4 findings; behaviour is fixed by the design:
 - Gates editor, Monitor and taps, Device editor, Protokol selection, access tiers, "Save as gate…" → Plan 3.
 - MIDI, gamepad (incl. Task 2 finding), Art-Net, discovery, OSCQuery → Plans 4–6.
 - Docs for haywire-repo (design §9) → proposals to the owner after Task 1.
+- Pin-menu removal rewriting the Arg shape (core hook pair, design §9) → the last slice, after
+  haywire-repo's workflow redesign lands.
+- Final-review minors #6–#17 (listed in the Plan 1 report) → folded into the plans that touch
+  that code; the rest in a cleanup slice before the hook slice.
