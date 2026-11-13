@@ -2,12 +2,15 @@
 name = "haybale-protokol-dev"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = [ "haywire-studio>=0.4.2", "haybale-studio>=0.4.2", "haybale-marketplace>=0.4.2", "haybale-core>=0.4.2", "haybale-graph-editor>=0.4.2", "haybale-haystack>=0.4.2", "haybale-protokol",]
+dependencies = [ "haywire-studio>=0.4.2", "haybale-studio>=0.4.2", "haybale-marketplace>=0.4.2", "haybale-core>=0.4.2", "haybale-graph-editor>=0.4.2", "haybale-haystack>=0.4.2", "haybale-protokol", "haybale-protokol-osc",]
 
 [tool.uv.workspace]
 members = [ "barn/*",]
 
 [tool.uv.sources.haybale-protokol]
+workspace = true
+
+[tool.uv.sources.haybale-protokol-osc]
 workspace = true
 
 [tool.uv.sources.haywire-studio]

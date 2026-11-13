@@ -139,11 +139,18 @@ class ProtokolState(AppState):
                 return f"device list: {exc}"
             if device is None:
                 return f"unbound gate: no device '{gate.device}' on this machine"
-        key = driver.line_key(gate, device)
+        try:
+            key = driver.line_key(gate, device)
+        except ValueError as exc:
+            return f"gate '{gate_name}': {exc}"
         with self._lock:
             line = self._lines.get(key)
             if line is None:
-                line = Line(key, driver.open(key, gate, device), driver.cache_key, self.grace_s)
+                try:
+                    connection = driver.open(key, gate, device)
+                except ValueError as exc:
+                    return f"gate '{gate_name}': {exc}"
+                line = Line(key, connection, driver.cache_key, self.grace_s)
                 line.on_closed = self._forget
                 line.on_changed = lambda _line: self._changed()
                 self._lines[key] = line
