@@ -40,8 +40,10 @@ class Message:
 class Connection(Protocol):
     """One open port or device connection; the driver's half of a Line."""
 
-    status: str
-    """Short text for the Line's status while open (``open``, ``reconnecting (2)``)."""
+    @property
+    def status(self) -> str:
+        """Short text for the Line's status while open (``open``, ``reconnecting (2)``)."""
+        ...
 
     def start(self, deliver: Callable[[Message], None]) -> None:
         """Open, and start the daemon thread that calls ``deliver`` for each message.

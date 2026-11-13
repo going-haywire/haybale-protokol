@@ -20,7 +20,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast, get_args
 
-import toml
 import tomlkit
 
 from haywire.core.tomlio import plain, read_toml, write_toml
@@ -63,7 +62,7 @@ def load_gates(path: Path) -> dict[str, Gate]:
         return {}
     try:
         data = plain(read_toml(path))
-    except (toml.TomlDecodeError, OSError) as exc:
+    except (ValueError, OSError) as exc:  # read_toml raises toml.TomlDecodeError, a ValueError
         raise GateFileError(f"{path}: {exc}") from exc
     tables = data.get("gates", {})
     if not isinstance(tables, dict):

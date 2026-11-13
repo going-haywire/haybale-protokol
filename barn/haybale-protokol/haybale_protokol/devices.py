@@ -14,7 +14,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-import toml
 import tomlkit
 
 from haywire.core.tomlio import plain, read_toml, write_toml
@@ -49,7 +48,7 @@ def load_devices(path: Path) -> dict[str, Device]:
         return {}
     try:
         data = plain(read_toml(path))
-    except (toml.TomlDecodeError, OSError) as exc:
+    except (ValueError, OSError) as exc:  # read_toml raises toml.TomlDecodeError, a ValueError
         raise DeviceListError(f"{path}: {exc}") from exc
     tables = data.get("devices", {})
     if not isinstance(tables, dict):
