@@ -117,3 +117,31 @@ def test_bad_frame_reconnects() -> None:
         client.close()
         server.stop()
 
+
+
+def test_invalid_slip_escape_reconnects() -> None:
+    server = TestPeer("1.1")
+    client, received = _client(server.port, "1.1")
+    try:
+        assert _wait(lambda: client.connected)
+        server.send_raw(b"\xc0\xdb\x00\xc0")
+        assert _wait(lambda: server.accepts == 2, timeout=3.0), "client should drop and reconnect"
+        assert "1 bad" in client.status
+        server.send("/ok", 1)
+        assert _wait(lambda: [m.address for m in received] == ["/ok"])
+    finally:
+        client.close()
+        server.stop()
+
+
+def test_client_socket_has_keepalive() -> None:
+    server = TestPeer("1.1")
+    client, _ = _client(server.port, "1.1")
+    try:
+        assert _wait(lambda: client.connected)
+        sock = client._sock
+        assert sock is not None
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE) != 0
+    finally:
+        client.close()
+        server.stop()

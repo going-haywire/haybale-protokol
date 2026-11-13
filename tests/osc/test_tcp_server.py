@@ -131,3 +131,59 @@ def test_close_stops_all_threads() -> None:
     assert not any(t.name.startswith("protokol-osc-tcp-") and t.is_alive() for t in threading.enumerate())
     for sock in peers:
         sock.close()
+
+
+def test_restart_on_same_port_after_peers() -> None:
+    first = TcpServerConnection("127.0.0.1", 0, "1.1")
+    first.start(lambda m: None)
+    port = first.port
+    peers = [_peer(first) for _ in range(2)]
+    assert _wait(lambda: first.peers == 2)
+    first.close()
+    for sock in peers:
+        sock.close()
+    second = TcpServerConnection("127.0.0.1", port, "1.1")
+    second.start(lambda m: None)
+    second.close()
+
+
+def test_peer_sockets_have_keepalive(server: tuple[TcpServerConnection, list[Message]]) -> None:
+    connection, _ = server
+    sock = _peer(connection)
+    try:
+        assert _wait(lambda: connection.peers == 1)
+        peer = next(iter(connection._peers))
+        assert peer.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE) != 0
+    finally:
+        sock.close()
+
+
+class _SlowPeer:
+    """Stands in for a peer socket whose sendall hands over its bytes in two parts."""
+
+    def __init__(self) -> None:
+        self.data = bytearray()
+
+    def sendall(self, frame: bytes) -> None:
+        half = len(frame) // 2
+        self.data.extend(frame[:half])
+        time.sleep(0.001)
+        self.data.extend(frame[half:])
+
+
+def test_concurrent_sends_do_not_interleave() -> None:
+    connection = TcpServerConnection("127.0.0.1", 0, "1.0")
+    slow = _SlowPeer()
+    connection._peers[slow] = threading.current_thread()  # type: ignore[index]
+    def burst(n: int) -> None:
+        for i in range(50):
+            connection.send(Message(f"/t{n}", (i,), 0.0))
+
+    threads = [threading.Thread(target=burst, args=(n,)) for n in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    packets = FrameReader("1.0").feed(bytes(slow.data))
+    assert len(packets) == 200
+    assert all(OscMessage(p).address.startswith("/t") for p in packets)

@@ -14,6 +14,7 @@ carrying the bundle's ``timetag`` in ``Message.extra``.
 from __future__ import annotations
 
 import logging
+import os
 import socket
 import threading
 import time
@@ -39,6 +40,10 @@ MAX_DATAGRAM = 65536
 BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 5.0)
 #: Longest a TCP connection attempt may take, so ``close()`` stays quick.
 CONNECT_TIMEOUT_S = 0.5
+#: TCP keepalive: probe after this many idle seconds, every interval, giving up after count.
+KEEPALIVE_IDLE_S = 5
+KEEPALIVE_INTERVAL_S = 2
+KEEPALIVE_COUNT = 3
 
 
 class OscDriver:
@@ -276,6 +281,7 @@ class TcpClientConnection:
                 self._back_off()
                 continue
             sock.settimeout(POLL_S)
+            keep_alive(sock)
             with self._send_lock:
                 self._sock = sock
                 self.attempts = 0
@@ -308,6 +314,8 @@ class TcpServerConnection:
         self._listener: socket.socket | None = None
         self._peers: dict[socket.socket, threading.Thread] = {}
         self._lock = threading.Lock()
+        self._send_lock = threading.Lock()
+        """Serializes sends, so frames from two flows never interleave on a peer."""
         self._closing = threading.Event()
 
     @property
@@ -325,6 +333,10 @@ class TcpServerConnection:
 
     def start(self, deliver: Callable[[Message], None]) -> None:
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if os.name != "nt":
+            # Lets the gate listen again while closed peers sit in TIME_WAIT; on POSIX it
+            # still refuses a port another socket is listening on.
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind((self.bind, self.port))
             listener.listen(8)
@@ -348,17 +360,18 @@ class TcpServerConnection:
         frame = encode_frame(packet, self.framing)
         with self._lock:
             peers = list(self._peers)
-        delivered = False
-        for peer in peers:
-            try:
-                peer.sendall(frame)
-                delivered = True
-            except OSError:
-                _shutdown(peer)
-        if delivered:
-            self.sent += 1
-        else:
-            self.dropped += 1
+        with self._send_lock:
+            delivered = False
+            for peer in peers:
+                try:
+                    peer.sendall(frame)
+                    delivered = True
+                except OSError:
+                    _shutdown(peer)
+            if delivered:
+                self.sent += 1
+            else:
+                self.dropped += 1
         return delivered
 
     def close(self) -> None:
@@ -388,6 +401,7 @@ class TcpServerConnection:
                     logger.exception("OSC line on tcp %s:%s stopped accepting", self.bind, self.port)
                 return
             peer.settimeout(POLL_S)
+            keep_alive(peer)
             number += 1
             thread = threading.Thread(
                 target=self._read,
@@ -444,6 +458,26 @@ def read_stream(
                 extra = {"timetag": timetag} if timetag is not None else {}
                 deliver(Message(message.address, tuple(message.params), now, extra))
     return bad
+
+
+def keep_alive(sock: socket.socket) -> None:
+    """Probe an idle TCP connection, so a peer that vanished without closing is noticed.
+
+    A dead peer is detected after about ``KEEPALIVE_IDLE_S + KEEPALIVE_COUNT * KEEPALIVE_INTERVAL_S``
+    seconds; options the platform lacks are skipped.
+    """
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    idle = getattr(socket, "TCP_KEEPIDLE", None) or getattr(socket, "TCP_KEEPALIVE", None)
+    for option, value in (
+        (idle, KEEPALIVE_IDLE_S),
+        (getattr(socket, "TCP_KEEPINTVL", None), KEEPALIVE_INTERVAL_S),
+        (getattr(socket, "TCP_KEEPCNT", None), KEEPALIVE_COUNT),
+    ):
+        if option is not None:
+            try:
+                sock.setsockopt(socket.IPPROTO_TCP, option, value)
+            except OSError:
+                pass
 
 
 def _shutdown(sock: socket.socket) -> None:

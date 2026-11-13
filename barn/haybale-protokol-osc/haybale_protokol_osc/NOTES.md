@@ -13,6 +13,10 @@ reconnecting (0.5 s, 1 s, 2 s, 4 s, then every 5 s) and shows `reconnecting (n)`
 while it is disconnected is dropped and counted, never queued. A server sends each message to
 all its peers. TCP gates may be `two-way`, so one gate can feed an OSC Receive and an OSC Send.
 
+A peer that disappears without closing (power cut, lost Wi-Fi) is noticed by TCP keepalive
+after about 11 s; a client then reconnects. A peer that stops reading is disconnected once
+it holds up a send for 0.2 s, rather than slowing the graph down.
+
 ## OSC Receive
 
 Runs its flow for each message on its input gate whose address matches **Address**, an OSC

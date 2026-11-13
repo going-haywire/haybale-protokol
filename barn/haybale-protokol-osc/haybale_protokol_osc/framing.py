@@ -70,7 +70,10 @@ class FrameReader:
             raw = bytes(self._buffer[:end])
             del self._buffer[: end + 1]
             if raw:
-                packets.append(bytes(slip.decode(raw)))
+                try:
+                    packets.append(bytes(slip.decode(raw)))
+                except slip.ProtocolError as exc:
+                    raise FrameError(f"bad SLIP escape: {exc}") from None
         if len(self._buffer) > self.max_frame:
             raise FrameError(f"no SLIP END within {self.max_frame} bytes")
         return packets

@@ -54,3 +54,8 @@ def test_empty_slip_frames_are_skipped() -> None:
 def test_unknown_framing_raises() -> None:
     with pytest.raises(ValueError, match="framing"):
         FrameReader("2.0")  # type: ignore[arg-type]
+
+
+def test_invalid_slip_escape_is_a_frame_error() -> None:
+    with pytest.raises(FrameError, match="SLIP"):
+        FrameReader("1.1").feed(b"\xc0\xdb\x00\xc0")
