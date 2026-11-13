@@ -59,6 +59,16 @@ class ArgPins:
         """The typed argument pins, in shape order."""
         return [self.ports[port_id] for port_id in self._arg_ids() if port_id in self.ports]
 
+    def _pins_mismatch(self) -> str | None:
+        """Why the argument pins no longer match the Arg shape (a pin removed from its menu), or ``None``."""
+        try:
+            named = [token for token in self._tokens() if token.haywire_type is not None]
+        except ShapeError as exc:
+            return f"Arg shape: {exc}"
+        if len(self._arg_ports()) != len(named):
+            return "pins and Arg shape differ: retype the Arg shape"
+        return None
+
     # -- building -----------------------------------------------------------------
 
     def _add_arg_ports(self, tokens: list[Token]) -> None:
@@ -92,6 +102,19 @@ class ArgPins:
         number = max([floor - 1, *used]) + 1
         self.store.arg_next = number + 1
         return f"arg_{number}"
+
+    def _accept_text(self) -> None:
+        """Remember the current config texts as the last ones that applied."""
+        for port_id in ("address", "arg_shape"):
+            if port_id in self.ports:
+                setattr(self.store, f"good_{port_id}", str(self.value(port_id) or ""))
+
+    def _reject_text(self, port: Any, error: Exception) -> None:
+        """Put ``port`` back to its last applied text and say why the new one was refused."""
+        self._report(f"not applied: {error}")
+        good = str(getattr(self.store, f"good_{getattr(port, 'id', '')}", ""))
+        if getattr(port, "id", None) in ("address", "arg_shape") and self.value(port.id) != good:
+            port.set_value(good)
 
     def _write_shape(self, tokens: list[Token]) -> None:
         """Set the Arg shape text; its ``on_change`` rebuilds the pins."""
@@ -133,7 +156,10 @@ class ArgPins:
         ]
         if not candidates:
             return []
-        tokens = self._tokens()
+        try:
+            tokens = self._tokens()
+        except ShapeError:
+            return []
         ids = self._arg_ids()
         stash = dict(getattr(self.store, "arg_released", {}))
         for port_id in candidates:
@@ -152,7 +178,10 @@ class ArgPins:
     def restore_pins(self, port_ids: list[str]) -> None:
         """Bring back pins ``release_pins`` removed, at their places in the shape."""
         stash = dict(getattr(self.store, "arg_released", {}))
-        tokens = self._tokens()
+        try:
+            tokens = self._tokens()
+        except ShapeError:
+            return
         ids = self._arg_ids()
         grown = list(getattr(self.store, "arg_grown", []))
         for port_id in reversed(port_ids):
@@ -176,7 +205,10 @@ class ArgPins:
         new_ids = sorted(ids, key=lambda port_id: self.ports[port_id].order)
         if new_ids == ids:
             return
-        tokens = self._tokens()
+        try:
+            tokens = self._tokens()
+        except ShapeError:
+            return
         positions = _named_positions(tokens)
         named = {port_id: tokens[position] for port_id, position in zip(ids, positions, strict=True)}
         for position, port_id in zip(positions, new_ids, strict=True):

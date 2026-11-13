@@ -58,8 +58,22 @@ def load_gates(path: Path) -> dict[str, Gate]:
     Raises:
         GateFileError: The file is not valid TOML, or a gate is malformed.
     """
+    gates, errors = load_gates_leniently(path)
+    if errors:
+        raise GateFileError(next(iter(errors.values())))
+    return gates
+
+
+def load_gates_leniently(path: Path) -> tuple[dict[str, Gate], dict[str, str]]:
+    """Read the well-formed gates in ``path``, and why each malformed one was left out.
+
+    One bad gate leaves the others usable; only a file that cannot be read fails as a whole.
+
+    Raises:
+        GateFileError: The file is not valid TOML, or ``[gates]`` is not a table.
+    """
     if not path.is_file():
-        return {}
+        return {}, {}
     try:
         data = plain(read_toml(path))
     except (ValueError, OSError) as exc:  # read_toml raises toml.TomlDecodeError, a ValueError
@@ -67,7 +81,14 @@ def load_gates(path: Path) -> dict[str, Gate]:
     tables = data.get("gates", {})
     if not isinstance(tables, dict):
         raise GateFileError(f"{path}: [gates] must be a table")
-    return {name: _gate_from_table(path, name, table) for name, table in tables.items()}
+    gates: dict[str, Gate] = {}
+    errors: dict[str, str] = {}
+    for name, table in tables.items():
+        try:
+            gates[name] = _gate_from_table(path, name, table)
+        except GateFileError as exc:
+            errors[name] = str(exc)
+    return gates, errors
 
 
 def save_gates(path: Path, gates: Iterable[Gate]) -> None:

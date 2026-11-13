@@ -58,6 +58,11 @@ class Line:
         return self._open
 
     @property
+    def is_closed(self) -> bool:
+        """True once the Line closed; it never opens again."""
+        return self._closed
+
+    @property
     def users(self) -> int:
         return len(self._users)
 
@@ -159,13 +164,14 @@ class Line:
             was_open = self._open
             self._open = False
             self._closed = True
+        # Forget the Line first, so a user arriving while the connection closes gets a new one.
+        if self.on_closed is not None:
+            self.on_closed(self)
         if was_open:
             try:
                 self.connection.close()
             except Exception:
                 logger.exception("Closing line %s failed", self.key)
-        if self.on_closed is not None:
-            self.on_closed(self)
         self._notify_changed()
 
     def _notify_changed(self) -> None:

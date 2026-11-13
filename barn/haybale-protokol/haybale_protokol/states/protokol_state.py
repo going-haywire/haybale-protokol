@@ -14,7 +14,7 @@ from haywire.core.state.decorator import state
 
 from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
 from haybale_protokol.drivers import LineKey, Message, ProtocolDriver
-from haybale_protokol.gates import Gate, GateFileError, gate_file_path, load_gates
+from haybale_protokol.gates import Gate, GateFileError, gate_file_path, load_gates_leniently
 from haybale_protokol.line import Line, LineOpenError
 from haybale_protokol.signals import ProtokolChanged
 
@@ -59,6 +59,8 @@ class ProtokolState(AppState):
         """Seconds a Line stays open after its last user leaves."""
         self.gate_file_error: str | None = None
         """Why the Gate file could not be read, or ``None``."""
+        self.gate_errors: dict[str, str] = {}
+        """Why each malformed gate was left out, by gate name."""
         self._drivers: dict[str, ProtocolDriver] = {}
         self._lines: dict[LineKey, Line] = {}
         self._lock = threading.RLock()
@@ -105,10 +107,10 @@ class ProtokolState(AppState):
             if stamp == self._gates_stamp and stamp is not None:
                 return dict(self._gates)
             try:
-                self._gates = load_gates(path)
+                self._gates, self.gate_errors = load_gates_leniently(path)
                 self.gate_file_error = None
             except GateFileError as exc:
-                self._gates = {}
+                self._gates, self.gate_errors = {}, {}
                 self.gate_file_error = str(exc)
             self._gates_stamp = stamp
             return dict(self._gates)
@@ -125,6 +127,8 @@ class ProtokolState(AppState):
             return f"gate file: {self.gate_file_error}"
         gate = gates.get(gate_name)
         if gate is None:
+            if gate_name in self.gate_errors:
+                return f"gate '{gate_name}': {self.gate_errors[gate_name]}"
             return f"no gate named '{gate_name}'"
         if gate.direction != "two-way" and gate.direction != direction:
             return f"'{gate_name}' is an {'input' if gate.direction == 'in' else 'output'} gate"
@@ -145,6 +149,9 @@ class ProtokolState(AppState):
             return f"gate '{gate_name}': {exc}"
         with self._lock:
             line = self._lines.get(key)
+            if line is not None and line.is_closed:
+                self._lines.pop(key, None)
+                line = None
             if line is None:
                 try:
                     connection = driver.open(key, gate, device)

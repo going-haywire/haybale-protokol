@@ -81,4 +81,8 @@ def compile_pattern(text: str) -> AddressPattern:
         i += 1
     if captures == 0:
         return AddressPattern(text, 0)
-    return AddressPattern(text, captures, re.compile("".join(parts)))
+    try:
+        regex = re.compile("".join(parts))
+    except re.error as exc:
+        raise ValueError(f"invalid pattern {text!r} at position {exc.pos}: {exc.msg}") from None
+    return AddressPattern(text, captures, regex)

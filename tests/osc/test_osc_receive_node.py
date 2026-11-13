@@ -159,3 +159,33 @@ def test_convert_capture(text: str, type_name: str, expected: Any) -> None:
 def test_convert_capture_refuses() -> None:
     with pytest.raises(ValueError, match="INT"):
         convert_capture("3a", "INT")
+
+
+def test_skips_show_even_when_nothing_fits(graph: BaseGraph, tmp_path: Path, udp_port: int) -> None:
+    wrapper = _receive(graph, shape="vf3")
+    with protokol_project(tmp_path, _gate(udp_port)), running(graph):
+        _listening(wrapper)
+        _send(udp_port, "/x", 1.0)
+        assert wait_until(lambda: "1 skipped" in str(wrapper.node.value("status")))
+
+
+def test_invalid_text_is_reverted(graph: BaseGraph) -> None:
+    wrapper = _receive(graph, address="/a/*", shape="f")
+    wrapper.node.ports["arg_shape"].set_value("f q")
+    assert wrapper.node.value("arg_shape") == "f"
+    wrapper.node.ports["address"].set_value("/a[z-a]")
+    assert wrapper.node.value("address") == "/a/*"
+    assert "not applied" in str(wrapper.node.value("status"))
+
+
+def test_removed_pin_is_a_status_not_misaligned(graph: BaseGraph, tmp_path: Path, udp_port: int) -> None:
+    from haywire.core.undo.actions.graph_actions import RemovePortAction
+
+    wrapper = _receive(graph, shape="f i s")
+    RemovePortAction(graph, wrapper.node_id, "arg_2").execute()
+    runs = record(wrapper, "arg_3", "status")
+    with protokol_project(tmp_path, _gate(udp_port)), running(graph):
+        _listening(wrapper)
+        _send(udp_port, "/x", 0.5, 7, "s")
+        assert wait_until(lambda: "Arg shape" in str(wrapper.node.value("status")))
+    assert all(run["arg_3"] != 7 for run in runs)

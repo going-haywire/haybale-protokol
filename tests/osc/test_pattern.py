@@ -60,3 +60,9 @@ def test_empty_matches_all() -> None:
 def test_invalid_pattern_raises(text: str) -> None:
     with pytest.raises(ValueError, match="position|start"):
         compile_pattern(text)
+
+
+@pytest.mark.parametrize("text", ["/a[]", "/a[z-a]", "/a[!]"])
+def test_bad_ranges_raise_value_error(text: str) -> None:
+    with pytest.raises(ValueError, match="position"):
+        compile_pattern(text)

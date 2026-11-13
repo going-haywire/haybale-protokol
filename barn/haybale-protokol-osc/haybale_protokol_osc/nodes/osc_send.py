@@ -63,15 +63,16 @@ class OscSendNode(ArgPins, BaseNode):
 
     # -- ports -------------------------------------------------------------------
 
-    def hb_rebuild(self, *_args: Any) -> None:
-        """Rebuild the argument inlets from the Arg shape; an invalid shape changes nothing."""
+    def hb_rebuild(self, port: Any = None, *_args: Any) -> None:
+        """Rebuild the argument inlets from the Arg shape; an invalid shape is put back."""
         try:
             tokens = self._tokens()
         except ShapeError as exc:
-            self.post_value("status", f"not applied: {exc}")
+            self._reject_text(port, exc)
             return
         with self.rejig(include=ARG_ID.pattern):
             self._add_arg_ports(tokens)
+        self._accept_text()
 
     def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:
         return type_cls.as_inlet(port_id, label=label, on_connect="hb_grow", origin=origin)
@@ -92,7 +93,11 @@ class OscSendNode(ArgPins, BaseNode):
             self._use = None
 
     def worker(self, context: ExecutionContext) -> str | None:
-        if self._use is not None:
+        mismatch = self._pins_mismatch() if self._use is not None else None
+        if mismatch is not None:
+            self._dropped += 1
+            self._problem = mismatch
+        elif self._use is not None:
             try:
                 tokens = self._tokens()
                 tags, args = encode(tokens, [self.value(port.id) for port in self._arg_ports()])

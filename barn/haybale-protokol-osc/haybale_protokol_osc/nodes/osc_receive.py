@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Any
 
 from haywire.core.execution.execution_context import ExecutionContext
@@ -19,6 +20,9 @@ from haybale_protokol_osc.pattern import AddressPattern, compile_pattern
 from haybale_protokol_osc.shape import ShapeError, Token, decode
 
 logger = logging.getLogger(__name__)
+
+#: Shortest time between two status updates for skipped messages.
+SKIP_STATUS_INTERVAL_S = 0.5
 
 #: Ports this node rebuilds from its address and Arg shape, re-added in this order.
 _REBUILT = r"^(args|arg_\d+|match_\d+|timetag|status)$"
@@ -77,6 +81,7 @@ class OscReceiveNode(ArgPins, BaseNode):
         self._lock = threading.Lock()
         self._binding: ReceiveBinding | None = None
         self._skipped = 0
+        self._skip_shown = -SKIP_STATUS_INTERVAL_S
         self._pattern = compile_pattern("")
         self._decode_tokens: list[Token] | None = None
         self._read_config()
@@ -88,13 +93,16 @@ class OscReceiveNode(ArgPins, BaseNode):
 
     # -- ports -------------------------------------------------------------------
 
-    def hb_rebuild(self, *_args: Any) -> None:
-        """Rebuild the argument and capture outlets after the address or Arg shape changed."""
+    def hb_rebuild(self, port: Any = None, *_args: Any) -> None:
+        """Rebuild the argument and capture outlets after the address or Arg shape changed.
+
+        An invalid address or shape is put back to the last one that applied.
+        """
         try:
             pattern = compile_pattern(str(self.value("address") or ""))
             tokens = self._tokens()
         except (ValueError, ShapeError) as exc:
-            self.post_value("status", f"not applied: {exc}")
+            self._reject_text(port, exc)
             return
         kept = {
             port_id: port.type_cls
@@ -103,6 +111,7 @@ class OscReceiveNode(ArgPins, BaseNode):
         }
         with self.rejig(include=_REBUILT):
             self._add_rebuilt_ports(pattern, tokens, kept)
+        self._accept_text()
         if hasattr(self, "_lock"):
             self._read_config()
 
@@ -172,7 +181,9 @@ class OscReceiveNode(ArgPins, BaseNode):
 
     def on_startup(self, context: ExecutionContext) -> None:
         self._read_config()
-        self._skipped = 0
+        with self._lock:
+            self._skipped = 0
+            self._skip_shown = -SKIP_STATUS_INTERVAL_S
         queue_mode, _size, start_value = resolve_dispatch(self.dispatch, stream=True)
         node_id = self.node_id
 
@@ -200,12 +211,15 @@ class OscReceiveNode(ArgPins, BaseNode):
             return None
         self.out("address_out", payload["address"])
         values = payload["values"]
+        mismatch = None if "args" in self.ports else self._pins_mismatch()
         if "args" in self.ports:
             self.out("args", list(values))
-        else:
-            for port, value in zip(self._arg_ports(), values, strict=False):
+        elif mismatch is None:
+            for port, value in zip(self._arg_ports(), values, strict=True):
                 self.out(port.id, value)
         problems = self._write_captures(payload["captures"])
+        if mismatch is not None:
+            problems.insert(0, mismatch)
         self.out("timetag", float(payload["timetag"] or 0.0))
         self.out("status", self._status(problems))
         return "received"
@@ -218,7 +232,7 @@ class OscReceiveNode(ArgPins, BaseNode):
             return None
         values: list[Any] | None = list(message.args) if tokens is None else decode(tokens, message.args)
         if values is None:
-            self._skipped += 1
+            self._count_skip()
             return None
         return {
             "address": message.address,
@@ -226,6 +240,17 @@ class OscReceiveNode(ArgPins, BaseNode):
             "captures": captures,
             "timetag": message.extra.get("timetag"),
         }
+
+    def _count_skip(self) -> None:
+        """Count a message that did not fit, and show it at once, at most twice a second (Line thread)."""
+        now = time.monotonic()
+        with self._lock:
+            self._skipped += 1
+            show = now - self._skip_shown >= SKIP_STATUS_INTERVAL_S
+            if show:
+                self._skip_shown = now
+        if show:
+            self.post_value("status", self._status([]))
 
     def _write_captures(self, captures: tuple[str, ...]) -> list[str]:
         problems: list[str] = []

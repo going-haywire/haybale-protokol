@@ -107,3 +107,12 @@ def test_reorder_keeps_skips_in_place(graph: BaseGraph) -> None:
     a, b = (port_id for port_id, _ in _typed(receive))
     ReorderPortsAction(graph, receive.node_id, [b, a, _slot(receive)]).execute()
     assert _shape(receive) == "i _ f"
+
+
+def test_deleting_grown_edge_after_invalid_typing(graph: BaseGraph) -> None:
+    send = _node(graph, OscSendNode, shape="i", x=400)
+    grown = _slot(send)
+    edge_id = _connect(graph, _number(graph), "value", send, grown).wrapper.edge_id
+    send.node.ports["arg_shape"].set_value("i f q")
+    RemoveElementsAction(graph, [], [edge_id], release_pins=True).execute()
+    assert _shape(send) == "i"
