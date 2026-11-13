@@ -1,0 +1,39 @@
+[project]
+name = "haybale-protokol-dev"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [ "haywire-studio>=0.4.2", "haybale-studio>=0.4.2", "haybale-marketplace>=0.4.2", "haybale-core>=0.4.2", "haybale-graph-editor>=0.4.2", "haybale-haystack>=0.4.2", "haybale-protokol",]
+
+[tool.uv.workspace]
+members = [ "barn/*",]
+
+[tool.uv.sources.haybale-protokol]
+workspace = true
+
+[tool.uv.sources.haywire-studio]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/packages/haywire-studio"
+editable = true
+
+[tool.uv.sources.haywire-core]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/packages/haywire-core"
+editable = true
+
+[tool.uv.sources.haybale-studio]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-studio"
+editable = true
+
+[tool.uv.sources.haybale-marketplace]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-marketplace"
+editable = true
+
+[tool.uv.sources.haybale-core]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-core"
+editable = true
+
+[tool.uv.sources.haybale-graph-editor]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-graph-editor"
+editable = true
+
+[tool.uv.sources.haybale-haystack]
+path = "/Volumes/Ddrive/06_open_tracking_tool/haywire/haywire-repo/barn/haybale-haystack"
+editable = true
