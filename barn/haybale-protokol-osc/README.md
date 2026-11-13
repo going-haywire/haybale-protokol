@@ -2,9 +2,18 @@
 
 # Protokol OSC
 
-OSC over UDP for Haywire, on top of `haybale-protokol`: an OSC Receive node and an OSC Send
+OSC over UDP and TCP for Haywire, on top of `haybale-protokol`: an OSC Receive node and an OSC Send
 node, each using a gate from the project's `.haywire/protokol.toml` (see the Protokol notes
 for the file format).
+
+## TCP
+
+A TCP gate is a client (`role = "client"`, connects to `host`) or a server
+(`role = "server"`, accepts any number of peers on `bind`). Choose the framing your peer
+speaks: `framing = "1.0"` (length prefix) or `"1.1"` (SLIP, the default). A client keeps
+reconnecting (0.5 s, 1 s, 2 s, 4 s, then every 5 s) and shows `reconnecting (n)`; anything sent
+while it is disconnected is dropped and counted, never queued. A server sends each message to
+all its peers. TCP gates may be `two-way`, so one gate can feed an OSC Receive and an OSC Send.
 
 ## OSC Receive
 
@@ -32,7 +41,7 @@ growing, unplugging (a grown pin) or reordering pins rewrites the shape.
 *Subscribe URL not yet published — push this repo to a git remote, then run `uv run --frozen haywire share --bump patch`.*
 <!-- marketstall:share-url:end -->
 
-OSC for haybale-protokol: UDP gates, OSC Receive and Send nodes
+OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes
 
 ## Nodes
 ### Protokol

@@ -1,6 +1,6 @@
 # Protokol OSC
 
-OSC for haybale-protokol: UDP gates, OSC Receive and Send nodes
+OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes
 
 ## Nodes
 ### Protokol

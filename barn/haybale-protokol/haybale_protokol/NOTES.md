@@ -22,6 +22,15 @@ protocol = "osc"
 direction = "out"
 port = 9000
 host = "10.0.0.2"
+
+[gates.desk]            # OSC over TCP: we connect to the peer
+protocol = "osc"
+direction = "two-way"   # TCP has one shared channel, so a gate may go both ways
+transport = "tcp"
+role = "client"         # or "server": peers connect to us (on bind, default all interfaces)
+host = "10.0.0.5"
+port = 3032
+framing = "1.1"         # "1.0" length prefix, or "1.1" SLIP (default)
 ```
 
 MIDI and gamepad gates name a **Device** (`device = "desk"`). The machine's Device list,
@@ -29,7 +38,9 @@ MIDI and gamepad gates name a **Device** (`device = "desk"`). The machine's Devi
 
 ## Lines
 
-Gates on the same port share one **Line**, the only thing that opens a port. A Line opens
+Gates that resolve to the same connection (the same protocol, transport, address and port)
+share one **Line**, the only thing that opens a port. Two gates on one port with different
+bind addresses are two Lines, and the second cannot open (`cannot open: ...`). A Line opens
 with its first user and closes once the last one has left and the grace period has passed
 (setting **Line grace period**, default 2 s), so a graph restart keeps its peers. Lines run on
 their own threads; a slow flow never holds a Line up.
@@ -46,4 +57,4 @@ Receive and Send nodes report problems on their `status` outlet; nothing crashes
 | `unbound gate: no device 'x' on this machine` | The Device list does not know the gate's device |
 | `'x' is an input gate` / `an output gate` | The node uses the gate in the wrong direction |
 | `cannot open: ...` | The port or device could not be opened (for example, already in use) |
-| `gate 'x': ...` | The gate's options are incomplete or wrong |
+| `gate 'x': ...` | The gate's options are incomplete or wrong, or disagree with another gate on the same Line |
