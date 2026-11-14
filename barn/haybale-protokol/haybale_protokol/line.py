@@ -42,6 +42,8 @@ class Line:
         self._lock = threading.Lock()
         self._users: dict[int, Subscriber | None] = {}
         self._subscribers: tuple[Subscriber, ...] = ()
+        self._outbound: dict[int, Subscriber] = {}
+        self._outbound_subscribers: tuple[Subscriber, ...] = ()
         self._next_token = 0
         self._cache: dict[Hashable, Message] = {}
         self._timer: threading.Timer | None = None
@@ -79,8 +81,10 @@ class Line:
             return "not open"
         return self.connection.status
 
-    def add_user(self, subscriber: Subscriber | None = None) -> int:
+    def add_user(self, subscriber: Subscriber | None = None, *, outbound: Subscriber | None = None) -> int:
         """Count a user, opening the Line if it is the first; returns the token to give back.
+
+        ``subscriber`` gets every message the Line receives; ``outbound`` every message it sent.
 
         Raises:
             LineOpenError: The Connection could not be opened, or the Line already closed.
@@ -103,6 +107,9 @@ class Line:
             self._next_token += 1
             self._users[token] = subscriber
             self._subscribers = tuple(s for s in self._users.values() if s is not None)
+            if outbound is not None:
+                self._outbound[token] = outbound
+                self._outbound_subscribers = tuple(self._outbound.values())
         self._notify_changed()
         return token
 
@@ -114,6 +121,8 @@ class Line:
                 return
             del self._users[token]
             self._subscribers = tuple(s for s in self._users.values() if s is not None)
+            if self._outbound.pop(token, None) is not None:
+                self._outbound_subscribers = tuple(self._outbound.values())
             if not self._users and self._open:
                 grace = max(0.0, float(self._grace_s()))
                 if grace == 0:
@@ -132,13 +141,25 @@ class Line:
         with self._lock:
             self._users.clear()
             self._subscribers = ()
+            self._outbound.clear()
+            self._outbound_subscribers = ()
         self._close_if_unused()
 
     def send(self, message: Message) -> bool:
-        """Send through the Connection; ``False`` while the Line is not open."""
+        """Send through the Connection; ``False`` while the Line is not open.
+
+        A message that went out is handed to the outbound subscribers (Monitor taps).
+        """
         if not self._open:
             return False
-        return self.connection.send(message)
+        sent = self.connection.send(message)
+        if sent:
+            for subscriber in self._outbound_subscribers:
+                try:
+                    subscriber(message)
+                except Exception:
+                    logger.exception("Outbound subscriber of line %s failed", self.key)
+        return sent
 
     def cached(self) -> list[Message]:
         """The last message per cache key, oldest first."""

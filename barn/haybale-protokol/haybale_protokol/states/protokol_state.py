@@ -3,22 +3,35 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from haywire.core.state.base import AppState
 from haywire.core.state.decorator import state
 
-from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
+from haybale_protokol.devices import Device, DeviceListError, device_list_path, load_devices
 from haybale_protokol.drivers import LineKey, Message, ProtocolDriver
-from haybale_protokol.gates import Gate, GateFileError, gate_file_path, load_gates_leniently
+from haybale_protokol.gates import (
+    Gate,
+    GateFileError,
+    gate_file_path,
+    load_gates_leniently,
+    remove_gate,
+    write_gate,
+)
 from haybale_protokol.line import Line, LineOpenError
 from haybale_protokol.signals import ProtokolChanged
 
+if TYPE_CHECKING:
+    from haybale_protokol.taps import Tap
+
 logger = logging.getLogger(__name__)
+
+_GATE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 #: The grace period when the setting cannot be read.
 DEFAULT_GRACE_S = 2.0
@@ -130,8 +143,123 @@ class ProtokolState(AppState):
             if gate_name in self.gate_errors:
                 return f"gate '{gate_name}': {self.gate_errors[gate_name]}"
             return f"no gate named '{gate_name}'"
+        return self.use_gate(gate, direction, subscriber)
+
+    def use_gate(
+        self,
+        gate: Gate,
+        direction: Literal["in", "out"],
+        subscriber: Callable[[Message], None] | None = None,
+        *,
+        outbound: Callable[[Message], None] | None = None,
+    ) -> LineUse | str:
+        """Take a hold on the Line of ``gate``, saved or not; returns a status text when it cannot.
+
+        ``outbound`` also receives every message the Line sends (Monitor taps).
+        """
         if gate.direction != "two-way" and gate.direction != direction:
-            return f"'{gate_name}' is an {'input' if gate.direction == 'in' else 'output'} gate"
+            return f"'{gate.name}' is an {'input' if gate.direction == 'in' else 'output'} gate"
+        resolved = self._resolve(gate)
+        if isinstance(resolved, str):
+            return resolved
+        driver, device, key = resolved
+        with self._lock:
+            line = self._lines.get(key)
+            if line is not None and line.is_closed:
+                self._lines.pop(key, None)
+                line = None
+            if line is None:
+                try:
+                    connection = driver.open(key, gate, device)
+                except ValueError as exc:
+                    return f"gate '{gate.name}': {exc}"
+                line = Line(key, connection, driver.cache_key, self.grace_s)
+                line.gate = gate
+                line.on_closed = self._forget
+                line.on_changed = lambda _line: self._changed()
+                self._lines[key] = line
+            conflict = _line_conflict(driver, gate, line)
+            if conflict is not None:
+                return conflict
+            try:
+                token = line.add_user(subscriber, outbound=outbound)
+            except LineOpenError:
+                self._lines.pop(key, None)
+                return line.status
+        return LineUse(line, token, gate)
+
+    def line_of(self, gate: Gate) -> Line | None:
+        """The open Line ``gate`` resolves to, without opening one."""
+        resolved = self._resolve(gate)
+        if isinstance(resolved, str):
+            return None
+        with self._lock:
+            line = self._lines.get(resolved[2])
+        return line if line is not None and line.is_open else None
+
+    def tap(self, gate: Gate, *, open_line: bool) -> Tap | str:
+        """A Monitor tap on ``gate``'s Line, in whatever directions the gate has.
+
+        With ``open_line=False`` only a Line that is already open is tapped (``"line not open"``).
+        """
+        from haybale_protokol.taps import Tap
+
+        if not open_line and self.line_of(gate) is None:
+            return "line not open"
+        tap = Tap()
+        direction: Literal["in", "out"] = "out" if gate.direction == "out" else "in"
+        result = self.use_gate(
+            gate,
+            direction,
+            tap.on_in if gate.direction != "out" else None,
+            outbound=tap.on_out if gate.direction != "in" else None,
+        )
+        if isinstance(result, str):
+            return result
+        tap.use = result
+        return tap
+
+    # -- editing the Gate file -----------------------------------------------------------
+
+    def save_gate(self, gate: Gate, *, replaces: str | None = None) -> str | None:
+        """Write ``gate`` to the Gate file; returns why it was refused, or ``None``.
+
+        The gate's driver checks its options; a gate whose protocol is not installed is
+        saved unchecked. ``replaces`` names the gate this one renames.
+        """
+        if not _GATE_NAME.fullmatch(gate.name):
+            return "a gate name uses letters, digits, '.', '_' and '-' only"
+        gates = self.gates()
+        if self.gate_file_error is not None:
+            return f"gate file: {self.gate_file_error}"
+        taken = set(gates) | set(self.gate_errors)
+        if gate.name in taken and gate.name != replaces:
+            return f"a gate named '{gate.name}' already exists"
+        driver = self.driver(gate.protocol)
+        if driver is not None:
+            device = None
+            if gate.device is not None:
+                try:
+                    device = load_devices(device_list_path()).get(gate.device)
+                except DeviceListError:
+                    device = None
+            if gate.device is None or device is not None:
+                try:
+                    driver.line_key(gate, device)
+                except ValueError as exc:
+                    return str(exc)
+        write_gate(gate_file_path(self._project_root()), gate, replaces=replaces)
+        self._reread_gates()
+        return None
+
+    def delete_gate(self, name: str) -> None:
+        """Remove ``name`` from the Gate file."""
+        remove_gate(gate_file_path(self._project_root()), name)
+        self._reread_gates()
+
+    # -- internals -------------------------------------------------------------------
+
+    def _resolve(self, gate: Gate) -> tuple[ProtocolDriver, Device | None, LineKey] | str:
         driver = self.driver(gate.protocol)
         if driver is None:
             return "protocol not installed"
@@ -146,38 +274,18 @@ class ProtokolState(AppState):
         try:
             key = driver.line_key(gate, device)
         except ValueError as exc:
-            return f"gate '{gate_name}': {exc}"
+            return f"gate '{gate.name}': {exc}"
+        return driver, device, key
+
+    def _reread_gates(self) -> None:
         with self._lock:
-            line = self._lines.get(key)
-            if line is not None and line.is_closed:
-                self._lines.pop(key, None)
-                line = None
-            if line is None:
-                try:
-                    connection = driver.open(key, gate, device)
-                except ValueError as exc:
-                    return f"gate '{gate_name}': {exc}"
-                line = Line(key, connection, driver.cache_key, self.grace_s)
-                line.gate = gate
-                line.on_closed = self._forget
-                line.on_changed = lambda _line: self._changed()
-                self._lines[key] = line
-            conflict = _line_conflict(driver, gate, line)
-            if conflict is not None:
-                return conflict
-            try:
-                token = line.add_user(subscriber)
-            except LineOpenError:
-                self._lines.pop(key, None)
-                return line.status
-        return LineUse(line, token, gate)
+            self._gates_stamp = None
+        self._changed()
 
     def lines(self) -> list[Line]:
         """Every Line currently open or in its grace period."""
         with self._lock:
             return list(self._lines.values())
-
-    # -- internals -------------------------------------------------------------------
 
     def _project_root(self) -> Path:
         if self.project_root is None:
