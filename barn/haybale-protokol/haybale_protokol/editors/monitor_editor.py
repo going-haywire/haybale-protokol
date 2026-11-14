@@ -176,13 +176,13 @@ class MonitorEditor(BaseEditor):
                 shown = tapped and key not in self._hidden
                 with list_block(active=shown).mark(f"monitor-source-{key}"):
                     with ui.row().classes("w-full items-center gap-1 no-wrap"):
-                        self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
                         ui.label(key).classes("text-sm font-medium truncate flex-1 min-w-0")
+                        self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
                         if tapped:
                             self._draw_line_actions(key, can_edit, shown=shown)
                     if tapped:
                         self._counts[key] = (
-                            ui.label("").classes("text-xs hw-text-dim pl-7").mark(f"monitor-count-{key}")
+                            ui.label("").classes("text-xs hw-text-dim").mark(f"monitor-count-{key}")
                         )
                 if tapped and can_edit and gate.direction in ("out", "two-way"):
                     self._draw_send_row(key, gate)
