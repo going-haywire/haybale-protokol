@@ -10,7 +10,6 @@ from typing import Final
 class ProtokolIcon:
     """Material icon names for the Protokol editors."""
 
-    gates: Final[str] = "cable"
     monitor: Final[str] = "monitor_heart"
     device: Final[str] = "usb"
     send: Final[str] = "send"

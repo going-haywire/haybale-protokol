@@ -23,6 +23,12 @@ def test_requires_view() -> None:
     assert GatesEditor.class_identity.requires == AccessTier.VIEW
 
 
+def test_uses_the_network_icon() -> None:
+    from haywire.ui import elements as hui
+
+    assert GatesEditor.class_identity.icon == hui.icon.network
+
+
 async def test_rows_show_status_kinds(
     user: User, protokol: ProtokolState, selection: ProtokolSelection, tmp_path: Path
 ) -> None:

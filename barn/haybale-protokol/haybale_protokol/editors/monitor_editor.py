@@ -65,6 +65,8 @@ class MonitorEditor(BaseEditor):
         self._context: SessionContext | None = None
         self._taps: dict[str, Tap] = {}
         self._gates: dict[str, Gate] = {}
+        self._hidden: set[str] = set()
+        """Watched lines whose messages the output hides."""
         self._senders: dict[str, LineUse] = {}
         self._filter = ""
         self._paused = False
@@ -115,10 +117,14 @@ class MonitorEditor(BaseEditor):
                         "monitor-clear"
                     )
                     hui.icon_action(
-                        hui.icon.download, tooltip="Export as JSONL", on_click=lambda: self._export("jsonl")
+                        hui.icon.download,
+                        tooltip="Export the shown lines as JSONL",
+                        on_click=lambda: self._export("jsonl"),
                     ).mark("monitor-export-jsonl")
                     hui.icon_action(
-                        icons.export_csv, tooltip="Export as CSV", on_click=lambda: self._export("csv")
+                        icons.export_csv,
+                        tooltip="Export the shown lines as CSV",
+                        on_click=lambda: self._export("csv"),
                     ).mark("monitor-export-csv")
                     if self._can_edit():
                         hui.icon_action(
@@ -154,32 +160,58 @@ class MonitorEditor(BaseEditor):
                 hui.hint("No gates or open Lines.").classes("px-2")
             for key, gate in sources.items():
                 tapped = key in self._taps
-                usable = tapped or can_edit or state.line_of(gate) is not None
-                row = list_row(active=tapped).mark(f"monitor-source-{key}")
-                if usable:
-                    row.on("click", lambda _e=None, k=key, g=gate: self._toggle(k, g, k not in self._taps))
-                else:
-                    # Design guide §2.11: disabled is opacity plus no pointer events, nothing else.
-                    row.classes("opacity-40 pointer-events-none").tooltip(
-                        "Opening a closed Line needs edit access"
-                    )
-                with row:
-                    ui.icon(hui.icon.checked if tapped else hui.icon.unchecked).classes("hw-text-muted")
+                with list_row(active=tapped).classes("cursor-default").mark(f"monitor-source-{key}"):
+                    self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
                     with ui.column().classes("flex-1 gap-0 min-w-0"):
                         ui.label(key).classes("text-sm font-medium truncate")
                         if tapped:
                             self._counts[key] = (
                                 ui.label("").classes("text-xs hw-text-dim").mark(f"monitor-count-{key}")
                             )
-                    if key.startswith("~") and tapped and can_edit:
-                        hui.icon_action(
-                            hui.icon.save,
-                            tooltip="Save as gate…",
-                            on_click=lambda k=key: self._open_save_as(k),
-                        ).on("click.stop", lambda: None).mark(f"monitor-save-as-{key}")
+                    if tapped:
+                        self._draw_line_actions(key, can_edit)
                 if tapped and can_edit and gate.direction in ("out", "two-way"):
                     self._draw_send_row(key, gate)
         self._update_counts()
+
+    def _draw_visibility(self, key: str, gate: Gate, tapped: bool, can_open: bool) -> None:
+        """The line's eye: watch it (not yet watched), or show and hide it in the output."""
+        if not tapped:
+            button = hui.icon_action(
+                hui.icon.hidden, tooltip="Watch this line", on_click=lambda: self._watch(key, gate)
+            ).mark(f"monitor-visibility-{key}")
+            if not can_open:
+                # Design guide §2.11: disabled is opacity plus no pointer events, nothing else.
+                button.classes("opacity-40 pointer-events-none").tooltip(
+                    "Opening a closed Line needs edit access"
+                )
+            return
+        hidden = key in self._hidden
+        hui.icon_action(
+            hui.icon.hidden if hidden else hui.icon.shown,
+            tooltip="Show in the output" if hidden else "Hide from the output",
+            on_click=lambda: self._toggle_hidden(key),
+        ).mark(f"monitor-visibility-{key}")
+
+    def _draw_line_actions(self, key: str, can_edit: bool) -> None:
+        if key.startswith("~") and can_edit:
+            hui.icon_action(
+                hui.icon.save, tooltip="Save as gate…", on_click=lambda: self._open_save_as(key)
+            ).mark(f"monitor-save-as-{key}")
+        hui.icon_action(hui.icon.clear, tooltip="Clear this line", on_click=lambda: self._clear(key)).mark(
+            f"monitor-clear-{key}"
+        )
+        with hui.icon_action(hui.icon.download, tooltip="Export this line").mark(f"monitor-export-{key}"):
+            with ui.menu():
+                hui.menu_row("As JSONL", on_click=lambda: self._export("jsonl", key)).mark(
+                    f"monitor-export-jsonl-{key}"
+                )
+                hui.menu_row(
+                    "As CSV", icon=icons.export_csv, on_click=lambda: self._export("csv", key)
+                ).mark(f"monitor-export-csv-{key}")
+        hui.icon_action(hui.icon.close, tooltip="Stop watching", on_click=lambda: self._stop(key)).mark(
+            f"monitor-close-{key}"
+        )
 
     def _draw_send_row(self, key: str, gate: Gate) -> None:
         driver = self._state().driver(gate.protocol)
@@ -215,12 +247,26 @@ class MonitorEditor(BaseEditor):
                 sources.setdefault(f"~{line.key.address}", line.gate)
         return dict(sorted(sources.items()))
 
-    def _toggle(self, key: str, gate: Gate, on: bool) -> None:
-        if on:
-            self._open_tap(key, gate)
-        else:
-            self._close_tap(key)
+    def _watch(self, key: str, gate: Gate) -> None:
+        if self._open_tap(key, gate):
+            self._hidden.discard(key)
         self._draw_sources()
+
+    def _stop(self, key: str) -> None:
+        """Stop watching: give the Line back; its messages go."""
+        self._close_tap(key)
+        self._hidden.discard(key)
+        self._draw_sources()
+        self._refresh()
+
+    def _toggle_hidden(self, key: str) -> None:
+        """Hide or show the line's messages in the output; the tap keeps collecting."""
+        if key in self._hidden:
+            self._hidden.discard(key)
+        else:
+            self._hidden.add(key)
+        self._draw_sources()
+        self._refresh()
 
     def _open_tap(self, key: str, gate: Gate) -> bool:
         if key in self._taps:
@@ -273,7 +319,11 @@ class MonitorEditor(BaseEditor):
 
     def _refresh(self) -> None:
         """Rebuild the message list from the taps, when something changed since the last time."""
-        shown = (self._filter, *((key, tap.received, tap.dropped) for key, tap in self._taps.items()))
+        shown = (
+            self._filter,
+            frozenset(self._hidden),
+            *((key, tap.received, tap.dropped) for key, tap in self._taps.items()),
+        )
         if shown == self._shown:
             return
         self._shown = shown
@@ -284,12 +334,14 @@ class MonitorEditor(BaseEditor):
             self._messages.set_content(_messages_html(self._view))
         self._update_counts()
 
-    def _collect(self) -> list[MonitorRow]:
-        """Every kept message that passes the filter, newest first."""
+    def _collect(self, only: str | None = None) -> list[MonitorRow]:
+        """Every kept message of the shown lines (or of ``only``) that passes the filter, newest first."""
         state = self._state()
         needle = self._filter.lower()
         collected: list[MonitorRow] = []
         for key, tap in self._taps.items():
+            if (only is not None and key != only) or (only is None and key in self._hidden):
+                continue
             gate = self._gates[key]
             driver = state.driver(gate.protocol)
             for entry in tap.messages():
@@ -323,14 +375,19 @@ class MonitorEditor(BaseEditor):
             tap.paused = self._paused
         self.wrapper.redraw()
 
-    def _clear(self) -> None:
-        for tap in self._taps.values():
-            tap.clear()
+    def _clear(self, key: str | None = None) -> None:
+        """Clear one line, or every shown line."""
+        for name, tap in self._taps.items():
+            if (key is None and name not in self._hidden) or name == key:
+                tap.clear()
         self._refresh()
 
-    def _export(self, kind: str) -> None:
+    def _export(self, kind: str, key: str | None = None) -> None:
+        """Export one line, or every shown line, as the filter keeps them, oldest first."""
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        rows = list(reversed(self._export_rows))
+        rows = list(reversed(self._collect(key) if key is not None else self._export_rows))
+        if key is not None:
+            stamp = f"{_file_safe(key)}-{stamp}"
         content = to_jsonl(rows) if kind == "jsonl" else to_csv(rows)
         ui.download.content(content.encode("utf-8"), f"protokol-monitor-{stamp}.{kind}")
 
@@ -480,6 +537,10 @@ def _messages_html(view: list[dict[str, Any]]) -> str:
             "</div>"
         )
     return "".join(lines)
+
+
+def _file_safe(text: str) -> str:
+    return "".join(c if c.isalnum() or c in "._-" else "_" for c in text).strip("_") or "line"
 
 
 def _show(error: ui.label, message: str) -> None:
