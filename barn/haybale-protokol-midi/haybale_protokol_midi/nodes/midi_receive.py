@@ -16,33 +16,10 @@ from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, STREAM_KINDS
+from haybale_protokol_midi.midi_pins import ARG_NAMES, KIND_PINS, NUMBER_PIN, number_filter
 
 logger = logging.getLogger(__name__)
 
-#: The outlets each kind writes, in order: (port id, builtin type name).
-KIND_OUTLETS: dict[str, tuple[tuple[str, str], ...]] = {
-    "note": (("velocity", "INT"), ("on", "BOOL")),
-    "cc": (("value", "INT"),),
-    "pitchbend": (("value", "INT"),),
-    "aftertouch": (("value", "INT"),),
-    "program": (("program", "INT"),),
-    "sysex": (("data", "BYTES"),),
-    "transport": (("event", "STRING"), ("position", "INT")),
-    "raw": (("bytes", "BYTES"),),
-}
-#: The number a note or cc filter fixes, and the outlet it gets when the filter is "any".
-NUMBER_OUTLET = {"note": "note", "cc": "controller"}
-#: The message arguments of each kind, by name (see ``midi_messages.decode``).
-ARG_NAMES: dict[str, tuple[str, ...]] = {
-    "note": ("note", "velocity", "on"),
-    "cc": ("controller", "value"),
-    "pitchbend": ("value",),
-    "aftertouch": ("value",),
-    "program": ("program",),
-    "sysex": ("data",),
-    "transport": ("event", "position"),
-    "raw": ("bytes",),
-}
 #: Display order of every outlet the filter can bring.
 _OUTLET_ORDER = (
     "channel",
@@ -173,10 +150,10 @@ class MidiReceiveNode(BaseNode):
 
         if kind in CHANNEL_KINDS and channel == 0:
             self.add(builtin.INT.as_outlet("channel", label="Channel"))
-        if kind in NUMBER_OUTLET and number < 0:
-            outlet = NUMBER_OUTLET[kind]
+        if kind in NUMBER_PIN and number < 0:
+            outlet = NUMBER_PIN[kind]
             self.add(builtin.INT.as_outlet(outlet, label=outlet.capitalize()))
-        for port_id, type_name in KIND_OUTLETS.get(kind, ()):
+        for port_id, type_name in KIND_PINS.get(kind, ()):
             type_cls = BYTES if type_name == "BYTES" else getattr(builtin, type_name)
             self.add(type_cls.as_outlet(port_id, label=port_id.capitalize()))
         self.add(STRING.as_outlet("status", label="Status", default=""))
@@ -240,7 +217,7 @@ class MidiReceiveNode(BaseNode):
             return None
         if kind in CHANNEL_KINDS and channel != 0 and message.extra.get("channel") != channel:
             return None
-        if kind in NUMBER_OUTLET and number >= 0 and message.extra.get("number") != number:
+        if kind in NUMBER_PIN and number >= 0 and message.extra.get("number") != number:
             return None
         values = dict(zip(ARG_NAMES[kind], message.args, strict=False))
         return {"gate": gate, "values": values, "channel": message.extra.get("channel")}
@@ -256,7 +233,7 @@ class MidiReceiveNode(BaseNode):
         return (
             kind if kind in KINDS else "cc",
             int(self.value("filter_channel") or 0),
-            _number(self.value("filter_number")),
+            number_filter(self.value("filter_number")),
         )
 
     def _is_stream(self) -> bool:
@@ -265,8 +242,3 @@ class MidiReceiveNode(BaseNode):
     def _subscribe(self) -> None:
         queue_mode, size, _start = resolve_dispatch(self.dispatch, stream=self._is_stream())
         self.event_subscription = event_source_for(self.node_id, queue_mode, size)
-
-
-def _number(value: Any) -> int:
-    """The number filter; ``None`` (unset) means any. ``0`` is a real note or controller."""
-    return -1 if value is None else int(value)

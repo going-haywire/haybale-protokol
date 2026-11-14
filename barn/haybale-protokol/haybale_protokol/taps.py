@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from haybale_protokol.drivers import Message
-from haybale_protokol.states.protokol_state import LineUse
+from haybale_protokol.line_use import LineUse
 
 #: Messages a tap keeps; older ones drop.
 MONITOR_BUFFER = 2000

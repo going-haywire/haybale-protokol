@@ -112,10 +112,10 @@ def test_only_changes_retries_a_gate_that_failed(graph: BaseGraph, tmp_path: Pat
     try:
         with protokol_project(tmp_path, _out("a", a), _out("b", b)):
             node.on_startup(context)
-            real_send = node._uses["b"].line.send
-            node._uses["b"].line.send = lambda message: False  # b is down for the first tick
+            real_send = node._sender._uses["b"].line.send
+            node._sender._uses["b"].line.send = lambda message: False  # b is down for the first tick
             node.worker(context)
-            node._uses["b"].line.send = real_send
+            node._sender._uses["b"].line.send = real_send
             node.worker(context)  # same message: only b, which missed it, gets it now
             node.worker(context)  # same message again: nobody needs it
             status = str(node.value("status"))

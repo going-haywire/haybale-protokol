@@ -15,7 +15,8 @@ from collections.abc import Callable
 from typing import Any
 
 from haybale_protokol.drivers import Message
-from haybale_protokol.states.protokol_state import LineUse, ProtokolState
+from haybale_protokol.line_use import LineUse
+from haybale_protokol.states.protokol_state import ProtokolState
 
 logger = logging.getLogger(__name__)
 
