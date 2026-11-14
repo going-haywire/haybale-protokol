@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
+from html import escape
 from typing import Any
 
 from haywire.core.access import AccessTier
@@ -23,8 +24,11 @@ from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
 from haybale_protokol.drivers import Message, message_parser
+from haybale_protokol.editors import layout
 from haybale_protokol.editors.gate_form import GateForm
 from haybale_protokol.gates import Gate
+from haybale_protokol.icons import ProtokolIcon
+from haybale_protokol.icons import icon as icons
 from haybale_protokol.monitor_export import MonitorRow, to_csv, to_jsonl
 from haybale_protokol.signals import ProtokolChanged
 from haybale_protokol.states.protokol_selection import ProtokolSelection
@@ -38,17 +42,10 @@ MONITOR_REFRESH_S = 0.2
 #: Rows the table shows, newest first.
 MONITOR_ROWS = 300
 
-_COLUMNS = [
-    {"name": "time", "label": "Time", "field": "time", "align": "left"},
-    {"name": "source", "label": "Source", "field": "source", "align": "left"},
-    {"name": "direction", "label": "", "field": "direction", "align": "left"},
-    {"name": "description", "label": "Message", "field": "description", "align": "left"},
-]
-
 
 @editor(
     label="Monitor",
-    icon="monitor_heart",
+    icon=ProtokolIcon.monitor,
     default_slot=SlotName.EDIT,
     opens="on_context",
     requires=AccessTier.VIEW,
@@ -74,7 +71,8 @@ class MonitorEditor(BaseEditor):
         self._shown: tuple[Any, ...] = ()
         self._export_rows: list[MonitorRow] = []
         self._first_draw = True
-        self._table: ui.table | None = None
+        self._messages: ui.html | None = None
+        self._view: list[dict[str, Any]] = []
         self._sources_box: ui.column | None = None
         self._counts: dict[str, ui.label] = {}
         self._status: ui.label | None = None
@@ -103,13 +101,13 @@ class MonitorEditor(BaseEditor):
             self._first_draw = False
             self._tick_selection()
         with container:
-            with ui.column().classes("w-full h-full gap-1 p-1") as root:
-                with ui.row().classes("w-full items-center gap-1 no-wrap"):
+            with ui.column().classes("w-full h-full gap-0") as root:
+                with hui.editor_toolbar():
                     hui.input_field(
                         placeholder="Filter", value=self._filter, clearable=True, on_change=self._set_filter
                     ).classes("flex-1").mark("monitor-filter")
                     hui.icon_action(
-                        "play_arrow" if self._paused else hui.icon.pause,
+                        hui.icon.resume if self._paused else hui.icon.pause,
                         tooltip="Resume" if self._paused else "Pause",
                         on_click=self._toggle_pause,
                     ).mark("monitor-pause")
@@ -120,22 +118,23 @@ class MonitorEditor(BaseEditor):
                         hui.icon.download, tooltip="Export as JSONL", on_click=lambda: self._export("jsonl")
                     ).mark("monitor-export-jsonl")
                     hui.icon_action(
-                        "table_view", tooltip="Export as CSV", on_click=lambda: self._export("csv")
+                        icons.export_csv, tooltip="Export as CSV", on_click=lambda: self._export("csv")
                     ).mark("monitor-export-csv")
                     if self._can_edit():
                         hui.icon_action(
                             hui.icon.add, tooltip="New line…", on_click=self._open_new_line
                         ).mark("monitor-new-line")
-                self._status = hui.hint("").mark("monitor-status")
-                with ui.row().classes("w-full flex-1 gap-2 no-wrap min-h-0"):
-                    with ui.scroll_area().classes("w-72 flex-shrink-0 h-full"):
-                        self._sources_box = ui.column().classes("w-full gap-1")
-                    self._table = (
-                        ui.table(columns=_COLUMNS, rows=[], row_key="id")
-                        .props("dense flat virtual-scroll")
-                        .classes("flex-1 h-full")
-                        .mark("monitor-table")
-                    )
+                self._status = hui.hint("").classes("px-2").mark("monitor-status")
+                with ui.row().classes("w-full flex-1 gap-0 no-wrap min-h-0"):
+                    with ui.column().classes("w-72 flex-shrink-0 h-full gap-0"):
+                        with layout.scroll_area():
+                            self._sources_box = ui.column().classes("w-full gap-0 p-1")
+                    hui.separator(vertical=True)
+                    with ui.column().classes("flex-1 h-full min-w-0 gap-0"):
+                        with layout.scroll_area():
+                            self._messages = (
+                                ui.html("", sanitize=False).classes("w-full p-1").mark("monitor-messages")
+                            )
                 ui.timer(MONITOR_REFRESH_S, self._refresh)
             self._dialog_host = root
         self._shown = ()
@@ -150,30 +149,42 @@ class MonitorEditor(BaseEditor):
         state = self._state()
         can_edit = self._can_edit()
         with self._sources_box:
-            for key, gate in self._sources().items():
+            sources = self._sources()
+            if not sources:
+                hui.hint("No gates or open Lines.").classes("px-2")
+            for key, gate in sources.items():
                 tapped = key in self._taps
-                is_open = tapped or state.line_of(gate) is not None
-                with ui.column().classes("w-full gap-0"):
-                    with ui.row().classes("w-full items-center gap-1 no-wrap"):
-                        ui.checkbox(
-                            key, value=tapped, on_change=lambda e, k=key, g=gate: self._toggle(k, g, e.value)
-                        ).props("dense").classes("flex-1 min-w-0").mark(f"monitor-source-{key}").set_enabled(
-                            tapped or can_edit or is_open
-                        )
-                        if key.startswith("~") and tapped and can_edit:
-                            hui.icon_action(
-                                "save", tooltip="Save as gate…", on_click=lambda k=key: self._open_save_as(k)
-                            ).mark(f"monitor-save-as-{key}")
-                    if tapped:
-                        self._counts[key] = hui.hint("").classes("pl-6").mark(f"monitor-count-{key}")
-                        if can_edit and gate.direction in ("out", "two-way"):
-                            self._draw_send_row(key, gate)
+                usable = tapped or can_edit or state.line_of(gate) is not None
+                row = layout.list_row(active=tapped).mark(f"monitor-source-{key}")
+                if usable:
+                    row.on("click", lambda _e=None, k=key, g=gate: self._toggle(k, g, k not in self._taps))
+                else:
+                    # Design guide §2.11: disabled is opacity plus no pointer events, nothing else.
+                    row.classes("opacity-40 pointer-events-none").tooltip(
+                        "Opening a closed Line needs edit access"
+                    )
+                with row:
+                    ui.icon(hui.icon.checked if tapped else hui.icon.unchecked).classes("hw-text-muted")
+                    with ui.column().classes("flex-1 gap-0 min-w-0"):
+                        ui.label(key).classes("text-sm font-medium truncate")
+                        if tapped:
+                            self._counts[key] = (
+                                ui.label("").classes("text-xs hw-text-dim").mark(f"monitor-count-{key}")
+                            )
+                    if key.startswith("~") and tapped and can_edit:
+                        hui.icon_action(
+                            hui.icon.save,
+                            tooltip="Save as gate…",
+                            on_click=lambda k=key: self._open_save_as(k),
+                        ).on("click.stop", lambda: None).mark(f"monitor-save-as-{key}")
+                if tapped and can_edit and gate.direction in ("out", "two-way"):
+                    self._draw_send_row(key, gate)
         self._update_counts()
 
     def _draw_send_row(self, key: str, gate: Gate) -> None:
         driver = self._state().driver(gate.protocol)
         parse = message_parser(driver) if driver is not None else None
-        with ui.column().classes("w-full gap-0 pl-6"):
+        with hui.indented().classes("w-full pb-1"):
             if parse is None:
                 hui.hint(f"test-send not available for {gate.protocol}")
                 return
@@ -183,13 +194,13 @@ class MonitorEditor(BaseEditor):
                     .classes("flex-1")
                     .mark(f"monitor-send-input-{key}")
                 )
-                error = hui.error_label("").mark(f"monitor-send-error-{key}")
-                error.set_visibility(False)
                 hui.icon_action(
-                    "send",
+                    icons.send,
                     tooltip="Send",
                     on_click=lambda: self._send(key, gate, str(field.value or ""), error),
                 ).mark(f"monitor-send-{key}")
+            error = hui.error_label("").mark(f"monitor-send-error-{key}")
+            error.set_visibility(False)
 
     # -- taps ------------------------------------------------------------------------------
 
@@ -261,16 +272,16 @@ class MonitorEditor(BaseEditor):
     # -- refresh ---------------------------------------------------------------------------
 
     def _refresh(self) -> None:
-        """Rebuild the table from the taps, when something changed since the last time."""
+        """Rebuild the message list from the taps, when something changed since the last time."""
         shown = (self._filter, *((key, tap.received, tap.dropped) for key, tap in self._taps.items()))
         if shown == self._shown:
             return
         self._shown = shown
         rows = self._collect()
         self._export_rows = rows
-        if self._table is not None:
-            self._table.rows = [_table_row(index, row) for index, row in enumerate(rows[:MONITOR_ROWS])]
-            self._table.update()
+        self._view = [_view_row(row) for row in rows[:MONITOR_ROWS]]
+        if self._messages is not None and not self._messages.is_deleted:
+            self._messages.set_content(_messages_html(self._view))
         self._update_counts()
 
     def _collect(self) -> list[MonitorRow]:
@@ -443,16 +454,32 @@ class MonitorEditor(BaseEditor):
             self._status.set_text(text)
 
 
-def _table_row(index: int, row: MonitorRow) -> dict[str, Any]:
+def _view_row(row: MonitorRow) -> dict[str, Any]:
     stamp = datetime.fromtimestamp(row.time).strftime("%H:%M:%S.%f")[:-3]
     return {
-        "id": index,
         "time": stamp,
         "source": row.source,
         "direction": row.direction,
         "address": row.address,
         "description": row.description,
     }
+
+
+def _messages_html(view: list[dict[str, Any]]) -> str:
+    """The message list as one block of rows; theme tokens only (design guide §1.2, §3.3)."""
+    if not view:
+        return '<div class="text-xs hw-text-dim px-1">No messages yet.</div>'
+    lines = []
+    for row in view:
+        lines.append(
+            '<div class="flex gap-2 font-mono text-xs whitespace-nowrap min-w-0">'
+            f'<span class="hw-text-dim flex-shrink-0">{escape(row["time"])}</span>'
+            f'<span class="hw-text-muted flex-shrink-0">{escape(row["source"])}</span>'
+            f'<span class="hw-text-dim flex-shrink-0">{"out" if row["direction"] == "out" else "in "}</span>'
+            f'<span class="hw-text-body truncate">{escape(row["description"])}</span>'
+            "</div>"
+        )
+    return "".join(lines)
 
 
 def _show(error: ui.label, message: str) -> None:

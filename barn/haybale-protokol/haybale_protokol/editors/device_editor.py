@@ -21,7 +21,10 @@ from nicegui import ui
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import list_devices
 from haybale_protokol.editors.gates_editor import gate_status
+from haybale_protokol.editors import layout
 from haybale_protokol.gates import Gate
+from haybale_protokol.icons import ProtokolIcon
+from haybale_protokol.icons import icon as icons
 from haybale_protokol.line import Line
 from haybale_protokol.signals import ProtokolChanged
 from haybale_protokol.states.protokol_selection import ProtokolSelection
@@ -32,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @editor(
     label="Device",
-    icon="usb",
+    icon=ProtokolIcon.device,
     default_slot=SlotName.CONTEXT,
     requires=AccessTier.VIEW,
     description="The device or Line in the Protokol selection",
@@ -63,16 +66,12 @@ class DeviceEditor(BaseEditor):
         container.clear()
         with container:
             with ui.column().classes("w-full h-full gap-0") as root:
-                with hui.slot_header("Device", icon="usb"):
+                with hui.slot_header("Device", icon=ProtokolIcon.device):
                     if self._can_admin():
                         hui.icon_action(
                             hui.icon.add, tooltip="Add a device", on_click=lambda: self._open_form(None)
                         ).mark("device-add")
-                with (
-                    ui.scroll_area()
-                    .classes("flex-1 w-full")
-                    .props('content-style="width: 100%" content-active-style="width: 100%"')
-                ):
+                with layout.scroll_area():
                     self._body = ui.column().classes("w-full gap-1 p-2")
             self._dialog_host = root
             self._draw_body()
@@ -102,11 +101,7 @@ class DeviceEditor(BaseEditor):
         if not devices:
             hui.hint("No devices on this machine yet.")
         for name, device in sorted(devices.items()):
-            with (
-                ui.row()
-                .classes("w-full items-center no-wrap gap-1 rounded hw-list-item-hover")
-                .mark(f"device-row-{name}")
-            ):
+            with layout.list_row().classes("cursor-default").mark(f"device-row-{name}"):
                 with ui.column().classes("gap-0 flex-1 min-w-0"):
                     with ui.row().classes("items-center gap-1 no-wrap"):
                         hui.subject(name).classes("truncate")
@@ -132,7 +127,7 @@ class DeviceEditor(BaseEditor):
                 if self._can_admin():
                     hui.button(
                         "Map device…",
-                        icon="link",
+                        icon=icons.bind,
                         on_click=lambda: self._open_form(Device(name, "", ""), mapping=True),
                     ).mark("device-map")
                 return
@@ -189,7 +184,7 @@ class DeviceEditor(BaseEditor):
                 hui.subject(text, mono=True).classes("truncate w-full text-xs")
 
     def _back(self) -> None:
-        hui.button("Device list", icon="arrow_back", on_click=self._selection().clear).mark("device-back")
+        hui.button("Device list", icon=icons.back, on_click=self._selection().clear).mark("device-back")
 
     def _device_status(self, device: Device) -> str:
         driver = self._state().driver(device.protocol)
