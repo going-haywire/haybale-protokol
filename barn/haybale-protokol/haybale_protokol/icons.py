@@ -16,6 +16,8 @@ class ProtokolIcon:
     bind: Final[str] = "link"
     back: Final[str] = "arrow_back"
     export_csv: Final[str] = "table_view"
+    newest_first: Final[str] = "vertical_align_top"
+    oldest_first: Final[str] = "vertical_align_bottom"
 
 
 icon = ProtokolIcon
