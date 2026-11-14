@@ -118,7 +118,6 @@ def test_bad_frame_reconnects() -> None:
         server.stop()
 
 
-
 def test_invalid_slip_escape_reconnects() -> None:
     server = TestPeer("1.1")
     client, received = _client(server.port, "1.1")

@@ -116,3 +116,33 @@ def test_deleting_grown_edge_after_invalid_typing(graph: BaseGraph) -> None:
     send.node.ports["arg_shape"].set_value("i f q")
     RemoveElementsAction(graph, [], [edge_id], release_pins=True).execute()
     assert _shape(send) == "i"
+
+
+def _outlet_order(wrapper: Any) -> list[str]:
+    outlets = [p for p in wrapper.node.ports.values() if p.is_outlet()]
+    return [p.id for p in sorted(outlets, key=lambda p: p.order)]
+
+
+@pytest.mark.parametrize("shape", ["", "f i", "f _ vf3"])
+def test_receive_slot_is_the_last_outlet(graph: BaseGraph, shape: str) -> None:
+    receive = _node(graph, OscReceiveNode)
+    receive.node.ports["address"].set_value("/blob/*")
+    receive.node.ports["arg_shape"].set_value(shape)
+    assert _outlet_order(receive)[-1] == _slot(receive)
+
+
+def test_receive_slot_stays_last_after_growing(graph: BaseGraph) -> None:
+    receive = _node(graph, OscReceiveNode, shape="i")
+    send = _node(graph, OscSendNode, shape="vf3", x=400)
+    _connect(graph, receive, _slot(receive), send, "arg_1")
+    assert _outlet_order(receive)[-1] == _slot(receive)
+
+
+@pytest.mark.parametrize("cls", [OscReceiveNode, OscSendNode])
+def test_configs_explain_themselves(graph: BaseGraph, cls: Any) -> None:
+    ports = _node(graph, cls).node.ports
+    assert "Gate file" in ports["gate"].description
+    assert "Arg shape" in ports["arg_shape"].description or "token" in ports["arg_shape"].description
+    assert "pin" in ports["arg_shape"].description
+    if cls is OscReceiveNode:
+        assert "match_" in ports["address"].description

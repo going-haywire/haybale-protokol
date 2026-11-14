@@ -21,6 +21,31 @@ from haybale_protokol_osc.shape import ShapeError, Token, decode
 
 logger = logging.getLogger(__name__)
 
+GATE_HELP = (
+    "The name of an input (or two-way) gate in the project's Gate file, .haywire/protokol.toml; "
+    "make gates in the Gates editor. The node opens the gate's Line when the graph starts and gives "
+    "it back when it stops. If the gate is missing, belongs to another protocol or its port is busy, "
+    "the status outlet says why and nothing fires. A change applies on the next start."
+)
+ADDRESS_HELP = (
+    "The OSC address pattern to listen to; empty takes every message on the gate. Wildcards: "
+    "* (any text within one /part), ? (one character), [0-9] or [!a] (one character from a set), "
+    "{left,right} (one of the words). Each wildcard adds a capture outlet, match_1, match_2 … from "
+    "left to right. A capture starts as an empty + pin and takes the type of the inlet you connect "
+    "it to (text, int, float or bool); a part that does not convert is reported in status. "
+    "Changing the pattern rebuilds the match_ outlets; an invalid pattern is put back."
+)
+SHAPE_HELP = (
+    "The Arg shape: the arguments the node expects, as tokens separated by spaces. i or h: int; "
+    "f or d: float; s: text; b: blob; T: bool; r: colour; vi2–vi4 and vf2–vf4: 2 to 4 ints or "
+    "floats as one vector; m3, m4: 9 or 16 floats as a matrix; _ skips one argument, _3 skips "
+    "three. Empty: one args outlet with the whole list. Otherwise one outlet per token, in order. "
+    "The shape and the pins follow each other: connecting the + pin at the bottom adds a token for "
+    "the connected type, deleting the edge that grew a pin removes the pin and its token, and "
+    "dragging pins into another order reorders the tokens. A message that does not fit is skipped "
+    "and counted in status; extra arguments are ignored. An invalid shape is put back."
+)
+
 #: Shortest time between two status updates for skipped messages.
 SKIP_STATUS_INTERVAL_S = 0.5
 
@@ -64,13 +89,25 @@ class OscReceiveNode(ArgPins, BaseNode):
         from haywire.barn.builtin.widgets import TextWidget
 
         commit = TextWidget.config(properties={"commit": True})
-        self.add(STRING.as_config("gate", default="", label="Gate", widget=commit))
+        self.add(STRING.as_config("gate", default="", label="Gate", description=GATE_HELP, widget=commit))
         self.add(
-            STRING.as_config("address", default="", label="Address", widget=commit, on_change="hb_rebuild")
+            STRING.as_config(
+                "address",
+                default="",
+                label="Address",
+                description=ADDRESS_HELP,
+                widget=commit,
+                on_change="hb_rebuild",
+            )
         )
         self.add(
             STRING.as_config(
-                "arg_shape", default="", label="Arg Shape", widget=commit, on_change="hb_rebuild"
+                "arg_shape",
+                default="",
+                label="Arg Shape",
+                description=SHAPE_HELP,
+                widget=commit,
+                on_change="hb_rebuild",
             )
         )
         self.add(EXEC.as_outlet("received", label="Received"))
@@ -167,6 +204,7 @@ class OscReceiveNode(ArgPins, BaseNode):
             self.add(self._capture_spec(port_id, type_cls or ADD, origin))
         self.add(FLOAT.as_outlet("timetag", label="Timetag", default=0.0))
         self.add(STRING.as_outlet("status", label="Status", default=""))
+        self._move_slot_last()
 
     def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:
         return type_cls.as_outlet(port_id, label=label, on_connect="hb_grow", origin=origin)

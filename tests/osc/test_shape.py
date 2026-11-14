@@ -10,7 +10,18 @@ from haywire.core.settings.types import Mat3, Vec2i, Vec3f
 def test_parse_known_tokens() -> None:
     tokens = parse_shape("i f d h s b T r vi2 vf3 m3 m4", receive=False)
     assert [t.haywire_type for t in tokens] == [
-        "INT", "FLOAT", "FLOAT", "INT", "STRING", "BYTES", "BOOL", "COLOR", "VEC2I", "VEC3F", "MAT3", "MAT4",
+        "INT",
+        "FLOAT",
+        "FLOAT",
+        "INT",
+        "STRING",
+        "BYTES",
+        "BOOL",
+        "COLOR",
+        "VEC2I",
+        "VEC3F",
+        "MAT3",
+        "MAT4",
     ]
     assert [t.width for t in tokens] == [1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 9, 16]
     assert parse_shape("  ", receive=True) == []
@@ -104,8 +115,18 @@ def test_infer_shape() -> None:
 
 @pytest.mark.parametrize(
     ("type_name", "token"),
-    [("FLOAT", "f"), ("INT", "i"), ("BOOL", "T"), ("STRING", "s"), ("BYTES", "b"), ("COLOR", "r"),
-     ("VEC3F", "vf3"), ("VEC2I", "vi2"), ("MAT4", "m4"), ("AUDIO", None)],
+    [
+        ("FLOAT", "f"),
+        ("INT", "i"),
+        ("BOOL", "T"),
+        ("STRING", "s"),
+        ("BYTES", "b"),
+        ("COLOR", "r"),
+        ("VEC3F", "vf3"),
+        ("VEC2I", "vi2"),
+        ("MAT4", "m4"),
+        ("AUDIO", None),
+    ],
 )
 def test_token_for_type(type_name: str, token: str | None) -> None:
     from haybale_protokol_osc.shape import token_for_type
