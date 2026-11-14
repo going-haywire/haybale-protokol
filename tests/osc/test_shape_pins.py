@@ -51,7 +51,7 @@ def test_grown_add_pin_appends_token(graph: BaseGraph) -> None:
     _connect(graph, receive, _slot(receive), send, "arg_1")
     assert _shape(receive) == "i vf3"
     assert [t for _, t in _typed(receive)] == ["INT", "VEC3F"]
-    assert "args" not in receive.node.ports
+    assert "args" in receive.node.ports, "args always carries every argument"
 
 
 def test_growth_undo_is_one_step(graph: BaseGraph) -> None:

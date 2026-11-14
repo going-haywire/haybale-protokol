@@ -27,7 +27,7 @@ address pattern (`*`, `?`, `[0-9]`, `{a,b}`; empty takes everything). Each wildc
 
 **Arg Shape** lists the arguments: OSC type tags (`i f d h s b T r`), groupings
 `vi2`–`vi4`, `vf2`–`vf4`, `m3`, `m4` for vectors and matrices, and `_` / `_n` to skip
-arguments. Empty gives one `args` list. A message that does not fit is skipped and counted
+arguments. The `args` outlet always carries every argument as a list; each token adds its own outlet. A message that does not fit is skipped and counted
 in `status`. By default the node fires once at start with the last message the gate saw
 (**Start Value**) and keeps only the newest message when its flow runs behind.
 
