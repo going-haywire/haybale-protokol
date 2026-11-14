@@ -102,6 +102,11 @@ class ProtokolState(AppState):
         self._close_lines(protocol)
         self._changed()
 
+    def protocols(self) -> list[str]:
+        """The protocols with a driver registered, sorted."""
+        with self._lock:
+            return sorted(self._drivers)
+
     def driver(self, protocol: str) -> ProtocolDriver | None:
         with self._lock:
             return self._drivers.get(protocol)
@@ -304,12 +309,14 @@ class ProtokolState(AppState):
             line.close()
 
     def _changed(self) -> None:
-        """Publish ``ProtokolChanged`` on the event loop; dropped while no loop runs.
+        """Publish ``ProtokolChanged`` on the event loop; dropped while no loop runs or unbound.
 
         Called from Line threads and under locks, so it only schedules.
         """
         from nicegui import core
 
+        if not hasattr(self, "_dispatcher"):
+            return  # not bound to an app (a standalone instance): nobody to tell
         loop = core.loop
         if loop is None or not loop.is_running():
             return
