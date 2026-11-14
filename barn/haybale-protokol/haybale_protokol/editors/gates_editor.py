@@ -12,6 +12,7 @@ from typing import Any
 from haywire.core.access import AccessTier
 from haywire.core.session.context import SessionContext
 from haywire.core.session.handlers import redraw_on
+from haywire.core.signals import Reveal
 from haywire.ui import elements as hui
 from haywire.ui.editor.base import BaseEditor
 from haywire.ui.editor.decorator import editor
@@ -126,6 +127,9 @@ class GatesEditor(BaseEditor):
                     tooltip="Bind…",
                     on_click=lambda g=gate: self._selection().select_device(g.device),
                 ).mark(f"gate-bind-{gate.name}")
+            hui.icon_action(
+                "monitor_heart", tooltip="Monitor", on_click=lambda g=gate: self._open_monitor(g)
+            ).mark(f"gate-monitor-{gate.name}")
             editable = self._can_edit()
             hui.icon_action(
                 hui.icon.edit if editable else hui.icon.view,
@@ -146,6 +150,14 @@ class GatesEditor(BaseEditor):
                 hui.icon_action(
                     hui.icon.delete, tooltip="Delete", on_click=lambda n=name: self._confirm_delete(n)
                 ).mark(f"gate-delete-{name}")
+
+    def _open_monitor(self, gate: Gate) -> None:
+        """Select the gate and open the Monitor, which ticks the selection."""
+        from haybale_protokol.editors.monitor_editor import MonitorEditor
+
+        assert self._context is not None
+        self._selection().select_gate(gate.name)
+        self._context.session.publish(Reveal(editor=MonitorEditor))
 
     # -- dialogs ------------------------------------------------------------------------
 
