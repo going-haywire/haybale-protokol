@@ -178,3 +178,15 @@ async def test_monitor_button_selects_and_reveals(
     published = context.session.publish.call_args.args[0]
     assert isinstance(published, Reveal)
     assert published.editor is MonitorEditor
+
+
+async def test_selected_row_uses_the_active_token(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    protokol.save_gate(Gate("in", "fake", "in", options={"port": 1}))
+    protokol.save_gate(Gate("out", "fake", "out", options={"port": 2, "host": "h"}))
+    selection.select_gate("in")
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    assert "hw-list-item-active" in one(user, "gate-row-in").classes
+    assert "hw-list-item-active" not in one(user, "gate-row-out").classes
+    assert not any(c.startswith("bg-") for c in one(user, "gate-row-in").classes)
