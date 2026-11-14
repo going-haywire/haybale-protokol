@@ -4,7 +4,7 @@ import pytest
 from nicegui import ui
 from nicegui.testing import User
 
-from haybale_protokol.editors import layout
+import haybale_protokol.editor_layout as layout
 
 pytestmark = pytest.mark.anyio
 

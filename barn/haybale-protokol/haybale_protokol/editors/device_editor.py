@@ -21,7 +21,7 @@ from nicegui import ui
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import list_devices
 from haybale_protokol.editors.gates_editor import gate_status
-from haybale_protokol.editors.layout import list_row, scroll_area
+from haybale_protokol.editor_layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
 from haybale_protokol.icons import icon as icons
