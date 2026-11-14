@@ -282,3 +282,25 @@ async def test_divider_between_lines_and_output_is_draggable(
         editor.draw(editor._context, ui.column())
     assert editor._split == 40
     assert [s.value for s in user.find(kind=ui.splitter).elements] == [40, 40]
+
+
+async def test_line_row_puts_eye_title_and_icons_in_one_row_status_below(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    block = one(user, "monitor-source-in")
+    head = one(user, "monitor-visibility-in").parent_slot.parent
+    assert head.parent_slot.parent is block
+    assert one(user, "monitor-clear-in").parent_slot.parent is head
+    assert one(user, "monitor-close-in").parent_slot.parent is head
+    assert one(user, "monitor-count-in").parent_slot.parent is block
+
+
+async def test_divider_is_drawn_in_a_theme_colour(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    await _monitor(user, protokol, selection)
+    style = one(user, "monitor-splitter").props.get("separator-style")
+    assert isinstance(style, str)
+    assert "var(--hw-separator" in style

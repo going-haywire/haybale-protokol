@@ -24,7 +24,7 @@ from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
 from haybale_protokol.drivers import Message, message_parser
-from haybale_protokol.editors.layout import list_row, scroll_area
+from haybale_protokol.editors.layout import SPLITTER_SEPARATOR, list_block, scroll_area
 from haybale_protokol.editors.gate_form import GateForm
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
@@ -139,6 +139,7 @@ class MonitorEditor(BaseEditor):
                 with (
                     ui.splitter(value=self._split, limits=SPLIT_LIMITS, on_change=self._set_split)
                     .classes("w-full flex-1 min-h-0")
+                    .props(SPLITTER_SEPARATOR)
                     .mark("monitor-splitter") as splitter
                 ):
                     with splitter.before:
@@ -173,16 +174,16 @@ class MonitorEditor(BaseEditor):
             for key, gate in sources.items():
                 tapped = key in self._taps
                 shown = tapped and key not in self._hidden
-                with list_row(active=shown).classes("cursor-default").mark(f"monitor-source-{key}"):
-                    self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
-                    with ui.column().classes("flex-1 gap-0 min-w-0"):
-                        ui.label(key).classes("text-sm font-medium truncate")
+                with list_block(active=shown).mark(f"monitor-source-{key}"):
+                    with ui.row().classes("w-full items-center gap-1 no-wrap"):
+                        self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
+                        ui.label(key).classes("text-sm font-medium truncate flex-1 min-w-0")
                         if tapped:
-                            self._counts[key] = (
-                                ui.label("").classes("text-xs hw-text-dim").mark(f"monitor-count-{key}")
-                            )
+                            self._draw_line_actions(key, can_edit, shown=shown)
                     if tapped:
-                        self._draw_line_actions(key, can_edit, shown=shown)
+                        self._counts[key] = (
+                            ui.label("").classes("text-xs hw-text-dim pl-7").mark(f"monitor-count-{key}")
+                        )
                 if tapped and can_edit and gate.direction in ("out", "two-way"):
                     self._draw_send_row(key, gate)
         self._update_counts()
