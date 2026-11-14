@@ -47,6 +47,20 @@ with its first user and closes once the last one has left and the grace period h
 (setting **Line grace period**, default 2 s), so a graph restart keeps its peers. Lines run on
 their own threads; a slow flow never holds a Line up.
 
+## Editors
+
+| Editor | Slot | What it does | Who may change things |
+|---|---|---|---|
+| **Gates** | left icon bar | The project's gates, with each one's Line and status. Add, edit, delete; "Bind…" for a gate whose device this machine does not know; open the Monitor on a gate. | Edit access |
+| **Monitor** | centre tab | Tick gates or open Lines to watch their traffic, newest first, filtered by text. Pause, clear, export as JSONL or CSV. Test-send to output gates. "New line…" watches a Line no gate uses yet, and "Save as gate…" keeps it. | Watching open Lines: view access. Opening Lines, test-send, saving gates: edit access |
+| **Device** | right icon bar | Follows the selection: a device, a gate (its options, Line and last values) or a Line. With nothing selected, the machine's Device list. | Editing the Device list: admin access |
+
+The Monitor never slows a Line: each watched source keeps the last 2000 messages (older ones
+drop and are counted), and the table redraws at most five times a second, showing the newest
+300. Export writes everything the filter keeps.
+
+A gate edited while graphs use it applies when those graphs next start.
+
 ## Status texts
 
 Receive and Send nodes report problems on their `status` outlet; nothing crashes the graph:
@@ -72,3 +86,9 @@ Control protocols for graphs: gates, shared lines and the base for OSC, MIDI and
 
 ## States
 - **Protokol** — Protocol drivers, the project's gates and the Lines they share
+- **Protokol selection** — The gate, Line or Device this session has selected
+
+## Editors
+- **Device** — The device or Line in the Protokol selection
+- **Gates** — The project's gates and their Lines
+- **Monitor** — Live traffic on Lines
