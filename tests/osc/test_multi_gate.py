@@ -134,11 +134,11 @@ def test_statuses_name_the_gate_that_failed(graph: BaseGraph, tmp_path: Path) ->
     receive.node.ports["gate"].set_value("a, m")
     send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0)).node
     send.ports["gate"].set_value("m")
-    gates = (_in("a", port), Gate("m", "midi", "in"), Gate("m", "midi", "out"))
+    gates = (_in("a", port), Gate("m", "dmx", "in"), Gate("m", "dmx", "out"))
     with protokol_project(tmp_path, gates[0], gates[1]), running(graph):
         assert wait_until(lambda: "m: protocol not installed" in str(receive.node.value("status")))
     context = MagicMock()
-    with protokol_project(tmp_path, Gate("m", "midi", "out")):
+    with protokol_project(tmp_path, Gate("m", "dmx", "out")):
         send.on_startup(context)
         status = str(send.value("status"))
         send.on_shutdown(context)
