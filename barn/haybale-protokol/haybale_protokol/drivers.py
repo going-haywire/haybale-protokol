@@ -8,9 +8,9 @@ from ``ProtokolState``; nothing touches the UI.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from haybale_protokol.devices import Device
 from haybale_protokol.gates import Gate
@@ -86,3 +86,48 @@ class ProtocolDriver(Protocol):
     def describe(self, message: Message) -> str:
         """Return one line describing ``message`` for the Monitor."""
         ...
+
+
+# -- optional driver features ---------------------------------------------------------
+#
+# A driver may also offer these; the editors read them with the helpers below, so a driver
+# without one still works (no form fields, no test-send, no device list).
+
+
+@dataclass(frozen=True)
+class GateField:
+    """One protocol option in the gate form."""
+
+    key: str
+    label: str
+    kind: Literal["text", "int", "choice"]
+    default: Any = None
+    choices: tuple[str, ...] = ()
+    applies: Mapping[str, tuple[Any, ...]] = field(default_factory=dict)
+    """When the field shows: for each key, the gate's value (or the key's field default) is listed."""
+
+    def applies_to(self, values: Mapping[str, Any], defaults: Mapping[str, Any]) -> bool:
+        return all(values.get(key, defaults.get(key)) in allowed for key, allowed in self.applies.items())
+
+
+def gate_fields(driver: Any) -> Sequence[GateField]:
+    """The driver's gate-form fields, or none."""
+    describe = getattr(driver, "gate_fields", None)
+    return tuple(describe()) if callable(describe) else ()
+
+
+def message_parser(driver: Any) -> Callable[[str], Message] | None:
+    """The driver's ``parse_test_message``, or ``None`` when it offers no test-send."""
+    parse = getattr(driver, "parse_test_message", None)
+    return parse if callable(parse) else None
+
+
+def list_devices(driver: Any) -> Sequence[tuple[str, str]]:
+    """``(os_id, description)`` of the devices the driver sees on this machine, or none."""
+    listing = getattr(driver, "list_devices", None)
+    return tuple(listing()) if callable(listing) else ()
+
+
+def uses_devices(driver: Any) -> bool:
+    """Whether the driver's gates name a Device."""
+    return bool(getattr(driver, "uses_devices", False))

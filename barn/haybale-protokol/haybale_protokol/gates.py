@@ -100,21 +100,52 @@ def save_gates(path: Path, gates: Iterable[Gate]) -> None:
     wanted = {gate.name: gate for gate in gates}
     for name in [name for name in tables if name not in wanted]:
         del tables[name]
-    for name, gate in wanted.items():
-        values = _table_from_gate(gate)
-        if name not in tables:
-            table = tomlkit.table()
-            table.update(values)
-            tables[name] = table
-            continue
-        table = tables[name]
-        for key in [key for key in table if key not in values]:
-            del table[key]
-        for key, value in values.items():
-            if key not in table or plain(table[key]) != value:
-                table[key] = value
+    for gate in wanted.values():
+        _put_table(tables, gate)
     path.parent.mkdir(parents=True, exist_ok=True)
     write_toml(path, document)
+
+
+def write_gate(path: Path, gate: Gate, *, replaces: str | None = None) -> None:
+    """Add or update one gate in ``path``, leaving every other table and comment as it is.
+
+    ``replaces`` names a gate this one takes the place of (a rename); it is removed.
+    """
+    document = read_toml(path) if path.is_file() else tomlkit.document()
+    if "gates" not in document:
+        document["gates"] = tomlkit.table(is_super_table=True)
+    tables = document["gates"]
+    if replaces is not None and replaces != gate.name and replaces in tables:
+        del tables[replaces]
+    _put_table(tables, gate)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_toml(path, document)
+
+
+def remove_gate(path: Path, name: str) -> None:
+    """Remove one gate from ``path``; a missing gate or file changes nothing."""
+    if not path.is_file():
+        return
+    document = read_toml(path)
+    tables = document.get("gates")
+    if tables is not None and name in tables:
+        del tables[name]
+        write_toml(path, document)
+
+
+def _put_table(tables: Any, gate: Gate) -> None:
+    values = _table_from_gate(gate)
+    if gate.name not in tables:
+        table = tomlkit.table()
+        table.update(values)
+        tables[gate.name] = table
+        return
+    table = tables[gate.name]
+    for key in [key for key in table if key not in values]:
+        del table[key]
+    for key, value in values.items():
+        if key not in table or plain(table[key]) != value:
+            table[key] = value
 
 
 def _gate_from_table(path: Path, name: str, table: Any) -> Gate:
