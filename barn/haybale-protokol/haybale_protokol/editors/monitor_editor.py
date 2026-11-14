@@ -98,7 +98,7 @@ class MonitorEditor(BaseEditor):
 
     @react_on(ProtokolSelection.gate, ProtokolSelection.line)
     def _on_selection(self, context: SessionContext, signal: Any) -> None:
-        """Tick what the session selected, then show it."""
+        """Tick what the session selected when its Line is open, then show it."""
         self._context = context
         self._tick_selection()
         self._draw_sources()
@@ -322,8 +322,9 @@ class MonitorEditor(BaseEditor):
         selection = self._context.data[ProtokolSelection]
         state = self._state()
         if selection.gate is not None:
+            # Selecting never opens a Line (a TCP client would connect): only an open one is ticked.
             gate = state.gates().get(selection.gate)
-            if gate is not None:
+            if gate is not None and state.line_of(gate) is not None:
                 self._open_tap(gate.name, gate)
         elif selection.line is not None:
             for line in state.lines():
@@ -557,11 +558,12 @@ def _messages_html(view: list[dict[str, Any]]) -> str:
         return '<div class="text-xs hw-text-dim px-1">No messages yet.</div>'
     lines = []
     for row in view:
+        direction = "out" if row["direction"] == "out" else "in "
         lines.append(
             '<div class="flex gap-2 font-mono text-xs whitespace-nowrap min-w-0">'
-            f'<span class="hw-text-dim flex-shrink-0">{escape(row["time"])}</span>'
-            f'<span class="hw-text-muted flex-shrink-0">{escape(row["source"])}</span>'
-            f'<span class="hw-text-dim flex-shrink-0">{"out" if row["direction"] == "out" else "in "}</span>'
+            f'<span class="hw-text-dim flex-shrink-0">{escape(row["time"])}</span> '
+            f'<span class="hw-text-muted flex-shrink-0">{escape(row["source"])}</span> '
+            f'<span class="hw-text-dim flex-shrink-0">{direction}</span> '
             f'<span class="hw-text-body truncate">{escape(row["description"])}</span>'
             "</div>"
         )
