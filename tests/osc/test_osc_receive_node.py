@@ -52,7 +52,7 @@ def test_args_list_by_default(graph: BaseGraph) -> None:
 
 def test_shape_builds_typed_outlets(graph: BaseGraph) -> None:
     wrapper = _receive(graph, shape="f _ vi2")
-    assert _ports(wrapper) == ["arg_1", "arg_2", "arg_3"]
+    assert _ports(wrapper) == ["args", "arg_1", "arg_2", "arg_3"]
     assert wrapper.node.ports["arg_1"].type_cls.__name__ == "FLOAT"
     assert wrapper.node.ports["arg_2"].type_cls.__name__ == "VEC2I"
     assert wrapper.node.ports["arg_3"].type_cls.__name__ == "ADD"
@@ -69,7 +69,7 @@ def test_pattern_builds_capture_outlets(graph: BaseGraph) -> None:
 def test_invalid_shape_keeps_ports(graph: BaseGraph) -> None:
     wrapper = _receive(graph, shape="f")
     wrapper.node.ports["arg_shape"].set_value("f q")
-    assert _ports(wrapper) == ["arg_1", "arg_2"]
+    assert _ports(wrapper) == ["args", "arg_1", "arg_2"]
     assert "not applied" in str(wrapper.node.value("status"))
 
 
@@ -88,12 +88,13 @@ def test_receives_into_flow(graph: BaseGraph, tmp_path: Path, udp_port: int) -> 
 
 def test_typed_outlets_receive(graph: BaseGraph, tmp_path: Path, udp_port: int) -> None:
     wrapper = _receive(graph, shape="f i")
-    runs = record(wrapper, "arg_1", "arg_2")
+    runs = record(wrapper, "arg_1", "arg_2", "args")
     with protokol_project(tmp_path, _gate(udp_port)), running(graph):
         _listening(wrapper)
-        _send(udp_port, "/x", 0.5, 3)
+        _send(udp_port, "/x", 0.5, 3, "extra")
         assert wait_until(lambda: len(runs) >= 1)
     assert (runs[-1]["arg_1"], runs[-1]["arg_2"]) == (0.5, 3)
+    assert runs[-1]["args"] == [0.5, 3, "extra"], "args carries every argument, shape or not"
 
 
 def test_pattern_filters_and_captures(graph: BaseGraph, tmp_path: Path, udp_port: int) -> None:
@@ -145,7 +146,8 @@ def test_save_reload_keeps_ports(graph: BaseGraph) -> None:
     assert loaded.load_from_dict(graph.to_dict())
     node = loaded.get_node_wrapper(wrapper.node_id).node
     assert node.value("arg_shape") == "f i"
-    assert sorted(p for p in node.ports if _PIN.fullmatch(p)) == ["arg_1", "arg_2", "arg_3", "match_1"]
+    pins = sorted(p for p in node.ports if _PIN.fullmatch(p))
+    assert pins == ["arg_1", "arg_2", "arg_3", "args", "match_1"]
 
 
 @pytest.mark.parametrize(

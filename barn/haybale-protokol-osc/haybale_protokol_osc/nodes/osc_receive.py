@@ -39,7 +39,8 @@ SHAPE_HELP = (
     "The Arg shape: the arguments the node expects, as tokens separated by spaces. i or h: int; "
     "f or d: float; s: text; b: blob; T: bool; r: colour; vi2–vi4 and vf2–vf4: 2 to 4 ints or "
     "floats as one vector; m3, m4: 9 or 16 floats as a matrix; _ skips one argument, _3 skips "
-    "three. Empty: one args outlet with the whole list. Otherwise one outlet per token, in order. "
+    "three. The args outlet always carries every argument as a list; each token adds its own "
+    "outlet, in order. "
     "The shape and the pins follow each other: connecting the + pin at the bottom adds a token for "
     "the connected type, deleting the edge that grew a pin removes the pin and its token, and "
     "dragging pins into another order reorders the tokens. A message that does not fit is skipped "
@@ -66,16 +67,17 @@ class OscReceiveNode(ArgPins, BaseNode):
     `Gate` names an input gate in the project's Gate file (`.haywire/protokol.toml`). `Address`
     is an OSC address pattern (`*`, `?`, `[0-9]`, `{a,b}`); empty takes every message. Each
     wildcard gets a capture outlet, `match_1`, `match_2`..., which takes the type of what it is
-    connected to. `Arg Shape` lists the arguments (`f i vf3 s`, `_` to skip one): empty gives
-    one `args` list, otherwise one outlet per token. A message that does not fit the shape is
-    skipped and counted in `status`.
+    connected to. `args` always carries every argument as a list. `Arg Shape` lists the
+    arguments (`f i vf3 s`, `_` to skip one), each token adding its own outlet. A message that
+    does not fit the shape is skipped and counted in `status`.
 
     The outlets keep the latest values, so other flows can read them.
 
     Outputs:
         received: Control flow for each matching message
         address: The address that matched
-        args / arg_N: The arguments
+        args: Every argument, as a list
+        arg_N: One argument (or a group, such as a vector) per Arg Shape token
         match_N: What each wildcard matched
         timetag: The OSC bundle's timetag, 0 for a message outside a bundle
         status: The gate's state and how many messages were skipped
@@ -194,8 +196,9 @@ class OscReceiveNode(ArgPins, BaseNode):
 
         from haybale_core.types.specs import LIST
 
-        if not any(token.haywire_type for token in tokens):
-            self.add(LIST.as_outlet("args", label="Args", description="Every argument of the message"))
+        self.add(
+            LIST.as_outlet("args", label="Args", description="Every argument of the message, as a list")
+        )
         self._add_arg_ports(tokens)
         for index in range(1, pattern.captures + 1):
             port_id = f"match_{index}"
@@ -248,11 +251,10 @@ class OscReceiveNode(ArgPins, BaseNode):
         if not isinstance(payload, dict):
             return None
         self.out("address_out", payload["address"])
+        self.out("args", list(payload["args"]))
         values = payload["values"]
-        mismatch = None if "args" in self.ports else self._pins_mismatch()
-        if "args" in self.ports:
-            self.out("args", list(values))
-        elif mismatch is None:
+        mismatch = self._pins_mismatch() if values else None
+        if values and mismatch is None:
             for port, value in zip(self._arg_ports(), values, strict=True):
                 self.out(port.id, value)
         problems = self._write_captures(payload["captures"])
@@ -268,12 +270,13 @@ class OscReceiveNode(ArgPins, BaseNode):
         captures = pattern.match(message.address)
         if captures is None:
             return None
-        values: list[Any] | None = list(message.args) if tokens is None else decode(tokens, message.args)
+        values: list[Any] | None = [] if tokens is None else decode(tokens, message.args)
         if values is None:
             self._count_skip()
             return None
         return {
             "address": message.address,
+            "args": list(message.args),
             "values": values,
             "captures": captures,
             "timetag": message.extra.get("timetag"),
