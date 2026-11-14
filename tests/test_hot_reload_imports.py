@@ -38,3 +38,38 @@ def _is_module(name: str) -> bool:
 @pytest.mark.parametrize("path", SOURCES, ids=lambda p: str(p.relative_to(BARN)))
 def test_helpers_are_imported_by_full_module_path(path: Path) -> None:
     assert _submodule_imports(path) == []
+
+
+#: Folders a registry claims (Library.register_components): every module in them must hold a component.
+COMPONENT_FOLDERS = ("settings", "states", "themes", "types", "adapters", "widgets", "skins", "nodes",
+                     "panels", "editors")
+
+
+def _component_bases() -> tuple[type, ...]:
+    from haywire.core.adapter.base import BaseAdapter
+    from haywire.core.node.base import BaseNode
+    from haywire.core.settings import LibrarySettings
+    from haywire.core.state.base import LibraryState
+    from haywire.ui.editor.base import BaseEditor
+
+    return (BaseNode, BaseEditor, LibraryState, LibrarySettings, BaseAdapter)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [p for p in SOURCES if p.parent.name in COMPONENT_FOLDERS and p.name != "__init__.py"],
+    ids=lambda p: str(p.relative_to(BARN)),
+)
+def test_component_folders_hold_only_component_modules(path: Path) -> None:
+    """Core treats a module in a claimed folder as a component; a helper there does not reload as one."""
+    import importlib
+
+    package = path.parent.parent.name
+    module = importlib.import_module(f"{package}.{path.parent.name}.{path.stem}")
+    defined = [
+        obj for obj in vars(module).values() if isinstance(obj, type) and obj.__module__ == module.__name__
+    ]
+    where = f"{path.parent.name}/"
+    assert any(issubclass(obj, _component_bases()) for obj in defined), (
+        f"{path.name} defines no component: move it out of {where} (a helper lives at the package root)"
+    )

@@ -20,8 +20,8 @@ from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
 from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
-from haybale_protokol.editors.gate_form import GateForm
-from haybale_protokol.editors.layout import list_row, scroll_area
+from haybale_protokol.gate_form import GateForm
+from haybale_protokol.editor_layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import icon as icons
 from haybale_protokol.signals import ProtokolChanged

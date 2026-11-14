@@ -24,8 +24,8 @@ from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
 from haybale_protokol.drivers import Message, message_parser
-from haybale_protokol.editors.layout import SPLITTER_SEPARATOR, list_block, scroll_area
-from haybale_protokol.editors.gate_form import GateForm
+from haybale_protokol.editor_layout import SPLITTER_SEPARATOR, list_block, scroll_area
+from haybale_protokol.gate_form import GateForm
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
 from haybale_protokol.icons import icon as icons
