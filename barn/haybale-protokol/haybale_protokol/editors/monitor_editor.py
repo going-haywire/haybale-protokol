@@ -24,7 +24,7 @@ from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
 from haybale_protokol.drivers import Message, message_parser
-from haybale_protokol.editors import layout
+from haybale_protokol.editors.layout import list_row, scroll_area
 from haybale_protokol.editors.gate_form import GateForm
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
@@ -127,11 +127,11 @@ class MonitorEditor(BaseEditor):
                 self._status = hui.hint("").classes("px-2").mark("monitor-status")
                 with ui.row().classes("w-full flex-1 gap-0 no-wrap min-h-0"):
                     with ui.column().classes("w-72 flex-shrink-0 h-full gap-0"):
-                        with layout.scroll_area():
+                        with scroll_area():
                             self._sources_box = ui.column().classes("w-full gap-0 p-1")
                     hui.separator(vertical=True)
                     with ui.column().classes("flex-1 h-full min-w-0 gap-0"):
-                        with layout.scroll_area():
+                        with scroll_area():
                             self._messages = (
                                 ui.html("", sanitize=False).classes("w-full p-1").mark("monitor-messages")
                             )
@@ -155,7 +155,7 @@ class MonitorEditor(BaseEditor):
             for key, gate in sources.items():
                 tapped = key in self._taps
                 usable = tapped or can_edit or state.line_of(gate) is not None
-                row = layout.list_row(active=tapped).mark(f"monitor-source-{key}")
+                row = list_row(active=tapped).mark(f"monitor-source-{key}")
                 if usable:
                     row.on("click", lambda _e=None, k=key, g=gate: self._toggle(k, g, k not in self._taps))
                 else:

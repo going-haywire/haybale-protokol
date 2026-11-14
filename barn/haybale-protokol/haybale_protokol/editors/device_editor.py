@@ -21,7 +21,7 @@ from nicegui import ui
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import list_devices
 from haybale_protokol.editors.gates_editor import gate_status
-from haybale_protokol.editors import layout
+from haybale_protokol.editors.layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
 from haybale_protokol.icons import icon as icons
@@ -71,7 +71,7 @@ class DeviceEditor(BaseEditor):
                         hui.icon_action(
                             hui.icon.add, tooltip="Add a device", on_click=lambda: self._open_form(None)
                         ).mark("device-add")
-                with layout.scroll_area():
+                with scroll_area():
                     self._body = ui.column().classes("w-full gap-1 p-2")
             self._dialog_host = root
             self._draw_body()
@@ -101,7 +101,7 @@ class DeviceEditor(BaseEditor):
         if not devices:
             hui.hint("No devices on this machine yet.")
         for name, device in sorted(devices.items()):
-            with layout.list_row().classes("cursor-default").mark(f"device-row-{name}"):
+            with list_row().classes("cursor-default").mark(f"device-row-{name}"):
                 with ui.column().classes("gap-0 flex-1 min-w-0"):
                     with ui.row().classes("items-center gap-1 no-wrap"):
                         hui.subject(name).classes("truncate")

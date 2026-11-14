@@ -21,7 +21,7 @@ from nicegui import ui
 
 from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
 from haybale_protokol.editors.gate_form import GateForm
-from haybale_protokol.editors import layout
+from haybale_protokol.editors.layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
 from haybale_protokol.icons import icon as icons
@@ -69,7 +69,7 @@ class GatesEditor(BaseEditor):
                         hui.icon_action(hui.icon.add, tooltip="Add a gate", on_click=self._open_add).mark(
                             "gate-add"
                         )
-                with layout.scroll_area():
+                with scroll_area():
                     self._rows = ui.column().classes("w-full gap-0 p-1")
             self._dialog_host = root
             self._draw_rows()
@@ -108,7 +108,7 @@ class GatesEditor(BaseEditor):
     def _draw_row(self, gate: Gate, status: str) -> None:
         selected = self._selection().gate == gate.name
         with (
-            layout.list_row(active=selected)
+            list_row(active=selected)
             .on("click", lambda _e=None, g=gate: self._selection().select_gate(g.name))
             .mark(f"gate-row-{gate.name}")
         ):
@@ -139,7 +139,7 @@ class GatesEditor(BaseEditor):
                 ).mark(f"gate-delete-{gate.name}")
 
     def _draw_broken_row(self, name: str, error: str) -> None:
-        with layout.list_row().classes("cursor-default").mark(f"gate-row-{name}"):
+        with list_row().classes("cursor-default").mark(f"gate-row-{name}"):
             with ui.column().classes("gap-0 flex-1 min-w-0"):
                 hui.subject(name).classes("truncate")
                 hui.error_label(error).classes("truncate w-full").mark(f"gate-status-{name}")
