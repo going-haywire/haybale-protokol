@@ -103,11 +103,20 @@ class GateField:
     kind: Literal["text", "int", "choice"]
     default: Any = None
     choices: tuple[str, ...] = ()
-    applies: Mapping[str, tuple[Any, ...]] = field(default_factory=dict)
-    """When the field shows: for each key, the gate's value (or the key's field default) is listed."""
+    applies: tuple[Mapping[str, tuple[Any, ...]], ...] = ()
+    """When the field shows: any one of these conditions holds (none means always).
+
+    A condition holds when, for each key, the gate's value (or that field's default) is listed.
+    Keys are option keys or ``direction``.
+    """
 
     def applies_to(self, values: Mapping[str, Any], defaults: Mapping[str, Any]) -> bool:
-        return all(values.get(key, defaults.get(key)) in allowed for key, allowed in self.applies.items())
+        if not self.applies:
+            return True
+        return any(
+            all(values.get(key, defaults.get(key)) in allowed for key, allowed in condition.items())
+            for condition in self.applies
+        )
 
 
 def gate_fields(driver: Any) -> Sequence[GateField]:

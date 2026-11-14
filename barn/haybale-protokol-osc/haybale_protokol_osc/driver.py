@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import socket
 import threading
 import time
@@ -26,7 +27,7 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.osc_message_builder import OscMessageBuilder
 
 from haybale_protokol.devices import Device
-from haybale_protokol.drivers import Connection, LineKey, Message
+from haybale_protokol.drivers import Connection, GateField, LineKey, Message
 from haybale_protokol.gates import Gate
 from haybale_protokol_osc.framing import FRAMINGS, FrameError, FrameReader, Framing, encode_frame
 
@@ -78,6 +79,51 @@ class OscDriver:
         if role == "server":
             return LineKey("osc", f"tcp-server {_text_option(gate, 'bind', '0.0.0.0')}:{port}")
         return LineKey("osc", f"tcp-client {_text_option(gate, 'host')}:{port}")
+
+    uses_devices = False
+
+    def gate_fields(self) -> tuple[GateField, ...]:
+        """The OSC options of the gate form; ``host`` and ``bind`` show by transport, direction and role."""
+        tcp = {"transport": ("tcp",)}
+        return (
+            GateField("transport", "Transport", "choice", "udp", ("udp", "tcp")),
+            GateField("role", "Role", "choice", "client", ("client", "server"), (tcp,)),
+            GateField(
+                "host",
+                "Host",
+                "text",
+                applies=({"transport": ("udp",), "direction": ("out",)}, {**tcp, "role": ("client",)}),
+            ),
+            GateField("port", "Port", "int"),
+            GateField(
+                "bind",
+                "Bind address",
+                "text",
+                "0.0.0.0",
+                applies=({"transport": ("udp",), "direction": ("in",)}, {**tcp, "role": ("server",)}),
+            ),
+            GateField("framing", "Framing", "choice", "1.1", ("1.1", "1.0"), (tcp,)),
+        )
+
+    def parse_test_message(self, text: str) -> Message:
+        """``/address arg arg ...``: ints, floats, ``T``/``F`` and words by their form; "quoted" is text.
+
+        Raises:
+            ValueError: No address, or an unclosed quote.
+        """
+        stripped = text.strip()
+        address, _, rest = stripped.partition(" ")
+        if not address.startswith("/") or '"' in address:
+            raise ValueError("a test message starts with an OSC address, like /fader/1")
+        if rest.count('"') % 2:
+            raise ValueError("unclosed quote")
+        args: list[Any] = []
+        types: list[str] = []
+        for quoted, bare in _TEST_TOKEN.findall(rest):
+            value, tag = (quoted, "s") if bare == "" else _typed(bare)
+            args.append(value)
+            types.append(tag)
+        return Message(address, tuple(args), time.time(), {"types": "".join(types)})
 
     def line_options(self, gate: Gate) -> Mapping[str, Any]:
         """Options every gate on one Line must agree on: the framing of a TCP Line."""
@@ -504,6 +550,22 @@ def build_message(address: str, args: tuple[Any, ...], types: str | None) -> byt
         for arg, tag in zip(args, types, strict=True):
             builder.add_arg(arg, tag)
     return bytes(builder.build().dgram)
+
+
+_TEST_TOKEN = re.compile(r'"([^"]*)"|(\S+)')
+
+
+def _typed(token: str) -> tuple[Any, str]:
+    if token in ("T", "F"):
+        return token == "T", token
+    try:
+        return int(token), "i"
+    except ValueError:
+        pass
+    try:
+        return float(token), "f"
+    except ValueError:
+        return token, "s"
 
 
 def _text_option(gate: Gate, key: str, default: str | None = None) -> str:
