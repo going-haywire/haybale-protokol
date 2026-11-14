@@ -16,6 +16,25 @@ from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.shape import ShapeError, encode
 
 
+GATE_HELP = (
+    "The name of an output (or two-way) gate in the project's Gate file, .haywire/protokol.toml; "
+    "make gates in the Gates editor. The node opens the gate's Line when the graph starts and gives "
+    "it back when it stops. While the gate is missing, belongs to another protocol or cannot reach "
+    "its peer, sends are dropped and counted in the status outlet, never queued. A change applies "
+    "on the next start."
+)
+SHAPE_HELP = (
+    "The Arg shape: one token per argument inlet, in inlet order. i: int; f: float; s: text; "
+    "b: blob; T: bool; r: colour; vi2–vi4 and vf2–vf4: a vector, sent as its components; m3, m4: "
+    "a matrix, sent as 9 or 16 floats. Use d or h instead of f or i for 64-bit numbers. There is "
+    "no _: every inlet is sent, and an unconnected inlet sends its own value. Typing the shape "
+    "rebuilds the inlets; connecting the + pin at the bottom adds a token for the connected type, "
+    "deleting the edge that grew a pin removes the pin and its token, and dragging pins into "
+    "another order reorders the tokens. An int too large for i is dropped and named in status; "
+    "an invalid shape is put back."
+)
+
+
 @node(
     label="OSC Send",
     description="Sends one OSC message to an output gate each time it runs",
@@ -42,10 +61,15 @@ class OscSendNode(ArgPins, BaseNode):
         from haywire.barn.builtin.widgets import TextWidget
 
         commit = TextWidget.config(properties={"commit": True})
-        self.add(STRING.as_config("gate", default="", label="Gate", widget=commit))
+        self.add(STRING.as_config("gate", default="", label="Gate", description=GATE_HELP, widget=commit))
         self.add(
             STRING.as_config(
-                "arg_shape", default="", label="Arg Shape", widget=commit, on_change="hb_rebuild"
+                "arg_shape",
+                default="",
+                label="Arg Shape",
+                description=SHAPE_HELP,
+                widget=commit,
+                on_change="hb_rebuild",
             )
         )
         self.add(EXEC.as_inlet("exec", label="Send"))
@@ -72,6 +96,7 @@ class OscSendNode(ArgPins, BaseNode):
             return
         with self.rejig(include=ARG_ID.pattern):
             self._add_arg_ports(tokens)
+            self._move_slot_last()
         self._accept_text()
 
     def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:

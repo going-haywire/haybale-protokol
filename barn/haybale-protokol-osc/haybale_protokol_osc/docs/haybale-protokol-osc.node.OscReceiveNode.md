@@ -8,9 +8,9 @@ Triggered for each OSC message on an input gate that matches the address pattern
 
 | id | direction | type | description |
 |---|---|---|---|
-| `gate` | config | `haywire-core:type:STRING` | Text data |
-| `address` | config | `haywire-core:type:STRING` | Text data |
-| `arg_shape` | config | `haywire-core:type:STRING` | Text data |
+| `gate` | config | `haywire-core:type:STRING` | The name of an input (or two-way) gate in the project's Gate file, .haywire/protokol.toml; make gates in the Gates editor. The node opens the gate's Line when the graph starts and gives it back when it stops. If the gate is missing, belongs to another protocol or its port is busy, the status outlet says why and nothing fires. A change applies on the next start. |
+| `address` | config | `haywire-core:type:STRING` | The OSC address pattern to listen to; empty takes every message on the gate. Wildcards: \* (any text within one /part), ? (one character), [0-9] or [!a] (one character from a set), {left,right} (one of the words). Each wildcard adds a capture outlet, match_1, match_2 … from left to right. A capture starts as an empty + pin and takes the type of the inlet you connect it to (text, int, float or bool); a part that does not convert is reported in status. Changing the pattern rebuilds the match_ outlets; an invalid pattern is put back. |
+| `arg_shape` | config | `haywire-core:type:STRING` | The Arg shape: the arguments the node expects, as tokens separated by spaces. i or h: int; f or d: float; s: text; b: blob; T: bool; r: colour; vi2–vi4 and vf2–vf4: 2 to 4 ints or floats as one vector; m3, m4: 9 or 16 floats as a matrix; _ skips one argument, _3 skips three. Empty: one args outlet with the whole list. Otherwise one outlet per token, in order. The shape and the pins follow each other: connecting the + pin at the bottom adds a token for the connected type, deleting the edge that grew a pin removes the pin and its token, and dragging pins into another order reorders the tokens. A message that does not fit is skipped and counted in status; extra arguments are ignored. An invalid shape is put back. |
 | `received` | outlet | `haywire-core:type:EXEC` | Signal for controlling execution flow between nodes |
 | `address_out` | outlet | `haywire-core:type:STRING` | Text data |
 | `args` | outlet | `haybale-core:type:LIST` | Every argument of the message |

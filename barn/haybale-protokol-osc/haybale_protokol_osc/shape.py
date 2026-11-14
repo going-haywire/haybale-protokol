@@ -32,11 +32,25 @@ INT32 = (-(2**31), 2**31 - 1)
 INT64 = (-(2**63), 2**63 - 1)
 
 _VECTORS: dict[str, type[list[Any]]] = {
-    "vi2": Vec2i, "vi3": Vec3i, "vi4": Vec4i, "vf2": Vec2f, "vf3": Vec3f, "vf4": Vec4f,
+    "vi2": Vec2i,
+    "vi3": Vec3i,
+    "vi4": Vec4i,
+    "vf2": Vec2f,
+    "vf3": Vec3f,
+    "vf4": Vec4f,
 }
 _SINGLE = {
-    "i": "INT", "h": "INT", "f": "FLOAT", "d": "FLOAT", "s": "STRING", "S": "STRING", "c": "STRING",
-    "b": "BYTES", "T": "BOOL", "F": "BOOL", "r": "COLOR",
+    "i": "INT",
+    "h": "INT",
+    "f": "FLOAT",
+    "d": "FLOAT",
+    "s": "STRING",
+    "S": "STRING",
+    "c": "STRING",
+    "b": "BYTES",
+    "T": "BOOL",
+    "F": "BOOL",
+    "r": "COLOR",
 }
 _SKIP = re.compile(r"_(\d*)")
 
@@ -258,8 +272,14 @@ def _require_float(index: int, value: Any) -> float:
 
 
 _TYPE_TOKENS = {
-    "INT": "i", "FLOAT": "f", "STRING": "s", "BYTES": "b",
-    "BOOL": "T", "COLOR": "r", "MAT3": "m3", "MAT4": "m4",
+    "INT": "i",
+    "FLOAT": "f",
+    "STRING": "s",
+    "BYTES": "b",
+    "BOOL": "T",
+    "COLOR": "r",
+    "MAT3": "m3",
+    "MAT4": "m4",
 }
 
 

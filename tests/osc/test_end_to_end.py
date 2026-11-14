@@ -78,4 +78,3 @@ def test_capture_that_does_not_convert_is_a_status(
         _listening(receive)
         SimpleUDPClient("127.0.0.1", udp_port).send_message("/in/x", 0.5)
         assert wait_until(lambda: "match_1: 'x' is not INT" in str(receive.node.value("status")))
-

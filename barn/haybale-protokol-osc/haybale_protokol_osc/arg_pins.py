@@ -96,6 +96,18 @@ class ArgPins:
             self.add(self._arg_spec(port_id, type_cls, PortOrigin.RESOLVED, f"{position}: {token.text}"))
         self.add(self._arg_spec(slot, ADD, PortOrigin.DECLARED, "+"))
 
+    def _move_slot_last(self) -> None:
+        """Put the empty slot after every other port, so it is the last pin of its side."""
+        slot = self.ports.get(self._slot_id())
+        if slot is None:
+            return
+        others = [port.order for port in self.ports.values() if port is not slot]
+        if others and slot.order <= max(others):
+            slot.order = max(others) + 1
+            wrapper = getattr(self, "wrapper", None)
+            if wrapper is not None:
+                wrapper.mark_layout_changed()
+
     def _new_arg_id(self, taken: list[str]) -> str:
         used = [int(m.group(1)) for port_id in (*self.ports, *taken) if (m := ARG_ID.fullmatch(port_id))]
         floor = int(getattr(self.store, "arg_next", 1))

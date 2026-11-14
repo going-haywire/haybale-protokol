@@ -59,7 +59,7 @@ def test_parse_quoted_string() -> None:
     assert message.extra["types"] == "ss"
 
 
-@pytest.mark.parametrize("text", ["", "fader 1", "/a\"unclosed", "/ok \"open"])
+@pytest.mark.parametrize("text", ["", "fader 1", '/a"unclosed', '/ok "open'])
 def test_parse_rejects_bad_input(text: str) -> None:
     parse = message_parser(OscDriver())
     assert parse is not None

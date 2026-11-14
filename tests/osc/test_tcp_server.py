@@ -175,6 +175,7 @@ def test_concurrent_sends_do_not_interleave() -> None:
     connection = TcpServerConnection("127.0.0.1", 0, "1.0")
     slow = _SlowPeer()
     connection._peers[slow] = threading.current_thread()  # type: ignore[index]
+
     def burst(n: int) -> None:
         for i in range(50):
             connection.send(Message(f"/t{n}", (i,), 0.0))
