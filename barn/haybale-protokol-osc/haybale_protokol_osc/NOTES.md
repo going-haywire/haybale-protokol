@@ -34,7 +34,8 @@ in `status`. By default the node fires once at start with the last message the g
 Sends **Address** with one argument per inlet, in inlet order. Connect anything to the empty
 inlet to add an argument. Vectors go out as their components (`vf3` → three `f`). Use `d` or
 `h` in the shape for 64-bit numbers. An int that does not fit a 32-bit `i` is dropped, and
-`status` says which argument it was.
+`status` says which argument it was. Each control tick sends, unless the **Only send changes** setting is on: then
+a tick sends only when the address, type tags or values differ from the last message sent.
 
 The Arg shape and the pins follow each other: typing the shape rebuilds the pins, and
 growing, unplugging (a grown pin) or reordering pins rewrites the shape.

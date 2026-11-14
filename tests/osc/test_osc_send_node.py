@@ -148,3 +148,52 @@ def test_missing_gate_status(graph: BaseGraph, tmp_path: Path) -> None:
     _begin_play(graph, send)
     with protokol_project(tmp_path), running(graph):
         assert wait_until(lambda: str(send.node.value("status")) == "no gate named 'nope'")
+
+
+def _drain(listener: socket.socket) -> list[OscMessage]:
+    messages = []
+    listener.settimeout(0.3)
+    try:
+        while True:
+            messages.append(OscMessage(listener.recvfrom(4096)[0]))
+    except TimeoutError:
+        return messages
+
+
+@pytest.mark.parametrize(("only_changes", "expected"), [(False, [1, 1, 2]), (True, [1, 2])])
+def test_only_changes_setting(
+    graph: BaseGraph, tmp_path: Path, listener: socket.socket, only_changes: bool, expected: list[int]
+) -> None:
+    from unittest.mock import MagicMock
+
+    send = _send_node(graph, shape="i")
+    node = send.node
+    node.sending.only_changes = only_changes
+    context = MagicMock()
+    with protokol_project(tmp_path, _out_gate(listener)):
+        node.on_startup(context)
+        for value in (1, 1, 2):
+            node.ports["arg_1"].set_value(value)
+            node.worker(context)
+        status = str(node.value("status"))
+        node.on_shutdown(context)
+    assert [m.params[0] for m in _drain(listener)] == expected
+    if only_changes:
+        assert "unchanged 1" in status
+
+
+def test_only_changes_sends_first_tick_of_each_run(
+    graph: BaseGraph, tmp_path: Path, listener: socket.socket
+) -> None:
+    from unittest.mock import MagicMock
+
+    node = _send_node(graph, shape="i").node
+    node.sending.only_changes = True
+    node.ports["arg_1"].set_value(5)
+    context = MagicMock()
+    with protokol_project(tmp_path, _out_gate(listener), grace=5.0):
+        for _run in range(2):
+            node.on_startup(context)
+            node.worker(context)
+            node.on_shutdown(context)
+    assert [m.params[0] for m in _drain(listener)] == [5, 5]
