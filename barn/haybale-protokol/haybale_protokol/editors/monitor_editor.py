@@ -419,6 +419,8 @@ class MonitorEditor(BaseEditor):
         if self._order_button is not None and not self._order_button.is_deleted:
             self._order_button.props(f"icon={icon}")
         self._refresh()
+        if self._newest_first and self._messages_area is not None and not self._messages_area.is_deleted:
+            self._messages_area.scroll_to(percent=0.0)  # the newest rows are at the top again
 
     def _on_messages_scroll(self, event: Any) -> None:
         """In log order, follow the newest row only while the user is at the bottom."""
