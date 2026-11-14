@@ -23,3 +23,15 @@ def scroll_area() -> ui.scroll_area:
 def list_row(*, active: bool = False) -> ui.row:
     """A selectable row: hover from the theme, ``--hw-bg-active`` when ``active``."""
     return ui.row().classes(f"{LIST_ROW} {ACTIVE_ROW}" if active else LIST_ROW)
+
+
+#: A list entry of several lines: hover and active like ``list_row``, children stacked.
+LIST_BLOCK = "w-full px-2 py-1.5 gap-0 rounded hw-list-item-hover"
+
+#: A splitter's divider: a faint line in the theme's separator colour (falls back to the border).
+SPLITTER_SEPARATOR = 'separator-style="background-color: var(--hw-separator, var(--hw-border))"'
+
+
+def list_block(*, active: bool = False) -> ui.column:
+    """A list entry whose first row holds its controls and whose next rows hold its details."""
+    return ui.column().classes(f"{LIST_BLOCK} {ACTIVE_ROW}" if active else LIST_BLOCK)
