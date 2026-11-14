@@ -131,10 +131,10 @@ def message_parser(driver: Any) -> Callable[[str], Message] | None:
     return parse if callable(parse) else None
 
 
-def list_devices(driver: Any) -> Sequence[tuple[str, str]]:
-    """``(os_id, description)`` of the devices the driver sees on this machine, or none."""
+def list_devices(driver: Any) -> Sequence[tuple[str, str]] | None:
+    """``(os_id, description)`` of the devices the driver sees now; ``None`` if it cannot list them."""
     listing = getattr(driver, "list_devices", None)
-    return tuple(listing()) if callable(listing) else ()
+    return tuple(listing()) if callable(listing) else None
 
 
 def uses_devices(driver: Any) -> bool:

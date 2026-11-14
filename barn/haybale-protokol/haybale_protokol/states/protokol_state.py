@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING, Literal
 from haywire.core.state.base import AppState
 from haywire.core.state.decorator import state
 
-from haybale_protokol.devices import Device, DeviceListError, device_list_path, load_devices
+from haybale_protokol.devices import (
+    Device,
+    DeviceListError,
+    device_list_path,
+    load_devices,
+    save_devices,
+)
 from haybale_protokol.drivers import LineKey, Message, ProtocolDriver
 from haybale_protokol.gates import (
     Gate,
@@ -74,6 +80,8 @@ class ProtokolState(AppState):
         """Why the Gate file could not be read, or ``None``."""
         self.gate_errors: dict[str, str] = {}
         """Why each malformed gate was left out, by gate name."""
+        self.device_list_error: str | None = None
+        """Why the Device list could not be read, or ``None``."""
         self._drivers: dict[str, ProtocolDriver] = {}
         self._lines: dict[LineKey, Line] = {}
         self._lock = threading.RLock()
@@ -261,6 +269,43 @@ class ProtokolState(AppState):
         """Remove ``name`` from the Gate file."""
         remove_gate(gate_file_path(self._project_root()), name)
         self._reread_gates()
+
+    # -- editing the Device list ---------------------------------------------------------
+
+    def devices(self) -> dict[str, Device]:
+        """This machine's Devices; ``{}`` when the Device list cannot be read (see ``device_list_error``)."""
+        try:
+            devices = load_devices(device_list_path())
+        except DeviceListError as exc:
+            self.device_list_error = str(exc)
+            return {}
+        self.device_list_error = None
+        return devices
+
+    def save_device(self, device: Device, *, replaces: str | None = None) -> str | None:
+        """Write ``device`` to the Device list; returns why it was refused, or ``None``."""
+        if not _GATE_NAME.fullmatch(device.name):
+            return "a device name uses letters, digits, '.', '_' and '-' only"
+        if not device.protocol:
+            return "a device needs a protocol"
+        if not device.os_id.strip():
+            return "a device needs the OS name or id of the hardware"
+        devices = self.devices()
+        if self.device_list_error is not None:
+            return f"device list: {self.device_list_error}"
+        if device.name in devices and device.name != replaces:
+            return f"a device named '{device.name}' already exists"
+        kept = [d for name, d in devices.items() if name not in (device.name, replaces)]
+        save_devices(device_list_path(), [*kept, device])
+        self._changed()
+        return None
+
+    def delete_device(self, name: str) -> None:
+        """Remove ``name`` from the Device list."""
+        devices = self.devices()
+        if name in devices:
+            save_devices(device_list_path(), [d for n, d in devices.items() if n != name])
+            self._changed()
 
     # -- internals -------------------------------------------------------------------
 
