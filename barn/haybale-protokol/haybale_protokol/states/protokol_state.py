@@ -141,6 +141,14 @@ class ProtokolState(AppState):
             self._gates_stamp = stamp
             return dict(self._gates)
 
+    def gate_choices(self, protocol: str, direction: Literal["in", "out"]) -> list[str]:
+        """Names of the project's ``protocol`` gates that can ``direction`` (two-way can both), sorted."""
+        return sorted(
+            name
+            for name, gate in self.gates().items()
+            if gate.protocol == protocol and gate.direction in (direction, "two-way")
+        )
+
     def use(
         self,
         gate_name: str,

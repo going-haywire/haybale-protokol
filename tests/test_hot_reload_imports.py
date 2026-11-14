@@ -41,8 +41,18 @@ def test_helpers_are_imported_by_full_module_path(path: Path) -> None:
 
 
 #: Folders a registry claims (Library.register_components): every module in them must hold a component.
-COMPONENT_FOLDERS = ("settings", "states", "themes", "types", "adapters", "widgets", "skins", "nodes",
-                     "panels", "editors")
+COMPONENT_FOLDERS = (
+    "settings",
+    "states",
+    "themes",
+    "types",
+    "adapters",
+    "widgets",
+    "skins",
+    "nodes",
+    "panels",
+    "editors",
+)
 
 
 def _component_bases() -> tuple[type, ...]:
@@ -51,8 +61,9 @@ def _component_bases() -> tuple[type, ...]:
     from haywire.core.settings import LibrarySettings
     from haywire.core.state.base import LibraryState
     from haywire.ui.editor.base import BaseEditor
+    from haywire.ui.widget.base import BaseWidget
 
-    return (BaseNode, BaseEditor, LibraryState, LibrarySettings, BaseAdapter)
+    return (BaseNode, BaseEditor, LibraryState, LibrarySettings, BaseAdapter, BaseWidget)
 
 
 @pytest.mark.parametrize(
