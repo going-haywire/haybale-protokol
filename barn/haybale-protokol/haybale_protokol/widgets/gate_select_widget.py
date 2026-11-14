@@ -1,25 +1,47 @@
-"""GateSelectWidget — pick one or more gates as chips; the port keeps them as ``"a, b"`` text."""
+"""GateSelectWidget — pick gates as chips; the port keeps them as ``"a, b"`` text."""
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, Literal
 
+from haywire.core.access import LevelMode
+from haywire.ui.access_stamp import stamp_requires
 from haywire.ui.widget.base import BaseWidget
 from haywire.ui.widget.converters import PrimitiveUnwrappingConverter
 from haywire.ui.widget.decorator import widget
 from nicegui import ui
 
 from haybale_protokol.gate_names import gate_names, join_gate_names
+from haybale_protokol.states.protokol_state import ProtokolState
+
+Tone = Literal["success", "warning", "danger"]
+
+#: Theme classes for each tone (design guide §1.2: colours only through --hw-* tokens).
+_TONE_CLASS: dict[str, str] = {
+    "success": "hw-text-success",
+    "warning": "hw-text-warning",
+    "danger": "hw-text-danger",
+}
 
 
 class GateListConverter(PrimitiveUnwrappingConverter):
-    """Text ``"a, b"`` in the port, a list of names in the select."""
+    """Text ``"a, b"`` in the port; a list of names in the select (one name when not ``multiple``)."""
+
+    def __init__(self, *, multiple: bool = True) -> None:
+        super().__init__()
+        self.multiple = multiple
 
     def to_view(self, model_value: Any) -> Any:
         value = super().to_view(model_value)
-        return gate_names(value if isinstance(value, str) else None)
+        names = gate_names(value if isinstance(value, str) else None)
+        if self.multiple:
+            return names
+        return names[0] if names else None
 
     def to_model(self, view_value: Any) -> Any:
+        if isinstance(view_value, str):
+            view_value = [view_value]
         return join_gate_names(view_value or [])
 
 
@@ -28,49 +50,101 @@ def merged_options(options: list[str], selected: list[str]) -> list[str]:
     return [*options, *(name for name in selected if name not in options)]
 
 
-@widget(description="Pick gates as chips from the gates that fit the node; typed names are kept")
+def select_options(properties: dict[str, Any]) -> dict[str, Any]:
+    """The ``ui.select`` arguments the widget's properties ask for."""
+    kwargs: dict[str, Any] = {"multiple": bool(properties.get("multiple", True))}
+    if properties.get("typed", True):
+        kwargs["new_value_mode"] = "add-unique"
+    return kwargs
+
+
+def gate_tone(state: ProtokolState, name: str, protocol: str, direction: str) -> Tone:
+    """How usable ``name`` is for a node of ``protocol`` that wants ``direction``.
+
+    ``success``: usable. ``warning``: right gate, but this machine cannot use it now (its protocol is
+    not installed, or its device is not in the Device list). ``danger``: no such gate, or one of
+    another protocol or direction.
+    """
+    gate = state.gates().get(name)
+    if gate is None or gate.protocol != protocol or gate.direction not in (direction, "two-way"):
+        return "danger"
+    if state.driver(gate.protocol) is None:
+        return "warning"
+    if gate.device is not None and gate.device not in state.devices():
+        return "warning"
+    return "success"
+
+
+def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
+    """The select's ``selected-item`` slot: each chosen gate as a chip, its text in its tone's token."""
+    classes = {name: _TONE_CLASS[tone] for name, tone in tones.items()}
+    lookup = json.dumps(classes).replace("'", "\\u0027")  # inside a single-quoted attribute
+    text = f"<span :class='({lookup})[props.opt] || \"{_TONE_CLASS['danger']}\"'>{{{{ props.opt }}}}</span>"
+    if not removable:
+        return text
+    return (
+        '<q-chip dense removable :tabindex="props.tabindex" @remove="props.removeAtIndex(props.index)">'
+        f"{text}</q-chip>"
+    )
+
+
+@widget(description="Pick gates as chips from the gates that fit the node, each coloured by its state")
 class GateSelectWidget(BaseWidget):
-    """A multiple select with chips, like the Models editor's library filter.
+    """A select of gates; its behaviour is set by plain properties, as the port saves them.
 
-    Config (``GateSelectWidget.config(properties={...})``), plain values since a port saves it:
+    Each chosen gate shows as a chip coloured by its state: success when usable, warning when this
+    machine cannot use it now (protocol not installed, device unbound), danger when there is no such
+    gate or it is of another protocol or direction. The select takes input only in edit mode.
 
-    - ``protocol``: which gates to offer, e.g. ``"osc"``.
-    - ``direction``: ``"in"`` or ``"out"``; two-way gates are offered for both.
+    Properties (``GateSelectWidget.config(properties={...})``):
+
+    - ``protocol``: the gates to offer and check, e.g. ``"osc"``.
+    - ``direction``: ``"in"`` or ``"out"``; two-way gates fit both.
+    - ``multiple`` (default ``True``): several gates, stored as ``"a, b"``; ``False`` for exactly one.
+    - ``typed`` (default ``True``): a name typed and confirmed with Enter is kept even when no such
+      gate exists yet.
 
     The offered gates are read from the project each time the widget is drawn, so new gates appear.
-
-    A name typed and confirmed with Enter is kept even when no such gate exists yet; the node's
-    status then reports it.
     """
 
     def build(self) -> Any:
         properties = self._config.get("properties", {})
-        self._options = _choices(str(properties.get("protocol", "")), properties.get("direction", "in"))
-        select = (
-            ui.select(options=list(self._options), value=[], multiple=True, new_value_mode="add-unique")
-            .props("use-chips")
-            .classes("w-full text-xs")
-        )
-        return self.bind(select, converter=GateListConverter())
+        self._protocol = str(properties.get("protocol", ""))
+        self._direction: Literal["in", "out"] = "out" if properties.get("direction") == "out" else "in"
+        self._multiple = bool(properties.get("multiple", True))
+        state = _state()
+        self._options = state.gate_choices(self._protocol, self._direction) if state is not None else []
+        select = ui.select(
+            options=list(self._options), value=[] if self._multiple else None, **select_options(properties)
+        ).classes("w-full text-xs")
+        if self._multiple:
+            select.props("use-chips")
+        stamp_requires(select, LevelMode.EDIT)
+        return self.bind(select, converter=GateListConverter(multiple=self._multiple))
 
     def on_model_changed(self, value: Any) -> None:
         element = self.ui_element
         if element is not None:
-            selected = GateListConverter().to_view(value)
+            selected = gate_names(PrimitiveUnwrappingConverter().to_view(value) or "")
             options = merged_options(self._options, selected)
             if options != list(element.options):
                 element.set_options(options)
+            state = _state()
+            tones: dict[str, Tone] = (
+                {name: gate_tone(state, name, self._protocol, self._direction) for name in selected}
+                if state is not None
+                else {}
+            )
+            element.add_slot("selected-item", chip_template(tones, removable=self._multiple))
+            element.update()
         super().on_model_changed(value)
 
 
-def _choices(protocol: str, direction: Any) -> list[str]:
-    """The gates to offer; none while haybale-protokol is not enabled."""
+def _state() -> ProtokolState | None:
+    """The app's ProtokolState; ``None`` while haybale-protokol is not enabled."""
     from haywire.core.di.context import get_library_state_container
 
-    from haybale_protokol.states.protokol_state import ProtokolState
-
     try:
-        state = get_library_state_container().get(ProtokolState)
+        return get_library_state_container().get(ProtokolState)
     except RuntimeError:
-        return []
-    return state.gate_choices(protocol, "out" if direction == "out" else "in") if state is not None else []
+        return None

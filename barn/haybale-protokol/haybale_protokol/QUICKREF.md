@@ -1,7 +1,7 @@
 # haybale-protokol — component index (v0.0.1)
 
 ## widget
-- `haybale-protokol:widget:GateSelectWidget` — GateSelectWidget — Pick gates as chips from the gates that fit the node; typed names are kept
+- `haybale-protokol:widget:GateSelectWidget` — GateSelectWidget — Pick gates as chips from the gates that fit the node, each coloured by its state
 
 ## setting
 - `haybale-protokol:setting:ProtokolSettings` — Protokol — Lines shared by gates and the Monitor
