@@ -211,9 +211,15 @@ class ArgPins:
     def reorder_ports(self, ordered_ids: list[str]) -> None:
         """Reorder pins as the base does, then reorder the Arg shape to match."""
         super().reorder_ports(ordered_ids)  # type: ignore[misc]
+        try:
+            self._reorder_tokens()
+        finally:
+            self._move_slot_last()
+
+    def _reorder_tokens(self) -> None:
         ids = self._arg_ids()
-        if not any(port_id in ids for port_id in ordered_ids):
-            return
+        if any(port_id not in self.ports for port_id in ids):
+            return  # a pin was removed from its menu; the status guard reports it
         new_ids = sorted(ids, key=lambda port_id: self.ports[port_id].order)
         if new_ids == ids:
             return

@@ -84,3 +84,18 @@ def test_component_folders_hold_only_component_modules(path: Path) -> None:
     assert any(issubclass(obj, _component_bases()) for obj in defined), (
         f"{path.name} defines no component: move it out of {where} (a helper lives at the package root)"
     )
+
+
+def test_no_helper_is_imported_from_a_component_module() -> None:
+    """A module in a component folder offers components only; a shared helper lives at the package root."""
+    found = []
+    for path in SOURCES:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not (isinstance(node, ast.ImportFrom) and node.module and node.level == 0):
+                continue
+            parts = node.module.split(".")
+            if len(parts) == 3 and parts[0].startswith("haybale_protokol") and parts[1] in COMPONENT_FOLDERS:
+                found += [
+                    f"{path.name}: {node.module}.{a.name}" for a in node.names if not a.name[0].isupper()
+                ]
+    assert found == []

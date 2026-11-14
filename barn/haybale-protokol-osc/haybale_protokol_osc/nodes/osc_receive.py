@@ -15,7 +15,7 @@ from haywire.core.types import PortOrigin
 
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
-from haybale_protokol.gate_names import gate_names
+from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
@@ -224,7 +224,28 @@ class OscReceiveNode(ArgPins, BaseNode):
             self.add(self._capture_spec(port_id, type_cls or ADD, origin))
         self.add(FLOAT.as_outlet("timetag", label="Timetag", default=0.0))
         self.add(STRING.as_outlet("status", label="Status", default=""))
-        self._move_slot_last()
+        self._order_rebuilt(pattern.captures)
+
+    def _order_rebuilt(self, captures: int) -> None:
+        """Put the rebuilt outlets in their order after the fixed ones; a re-added port keeps its old place.
+
+        args, the argument pins, the captures, timetag, status, then the empty slot.
+        """
+        rebuilt = [
+            "args",
+            *(port.id for port in self._arg_ports()),
+            *(f"match_{index}" for index in range(1, captures + 1)),
+            "timetag",
+            "status",
+            self._slot_id(),
+        ]
+        fixed = [port.order for port_id, port in self.ports.items() if port_id not in rebuilt]
+        base = max(fixed, default=0) + 1
+        for offset, port_id in enumerate(port_id for port_id in rebuilt if port_id in self.ports):
+            self.ports[port_id].order = base + offset
+        wrapper = getattr(self, "wrapper", None)
+        if wrapper is not None:
+            wrapper.mark_layout_changed()
 
     def _arg_spec(self, port_id: str, type_cls: Any, origin: PortOrigin, label: str) -> Any:
         return type_cls.as_outlet(port_id, label=label, on_connect="hb_grow", origin=origin)
@@ -330,7 +351,9 @@ class OscReceiveNode(ArgPins, BaseNode):
         return problems
 
     def _status(self, problems: list[str]) -> str:
-        parts = [binding.status for binding in self._bindings] or ["no gate set"]
+        parts = [named_status(binding.gate_name, binding.status) for binding in self._bindings] or [
+            "no gate set"
+        ]
         if self._skipped:
             parts.append(f"{self._skipped} skipped")
         parts.extend(problems)

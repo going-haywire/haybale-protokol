@@ -68,7 +68,7 @@ async def test_row_click_selects_gate(
 ) -> None:
     protokol.save_gate(Gate("in", "fake", "in", options={"port": 1}))
     await open_editor(user, GatesEditor, make_context(protokol, selection))
-    user.find(marker="gate-row-in").click()
+    user.find(marker="gate-select-in").click()
     assert selection.gate == "in"
 
 
@@ -209,3 +209,42 @@ async def test_row_puts_name_tags_and_icons_in_one_row_status_below(
     assert one(user, "gate-monitor-in").parent_slot.parent is head
     assert one(user, "gate-delete-in").parent_slot.parent is head
     assert one(user, "gate-status-in").parent_slot.parent is block
+
+
+def _clicks(element: object) -> bool:
+    return any(listener.type == "click" for listener in element._event_listeners.values())  # type: ignore[attr-defined]
+
+
+def _inside(element: object, ancestor: object) -> bool:
+    current = element
+    while current is not None:
+        if current is ancestor:
+            return True
+        slot = getattr(current, "parent_slot", None)
+        current = slot.parent if slot is not None else None
+    return False
+
+
+async def test_row_icons_are_outside_the_clickable_area(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    """A browser bubbles a click from an icon to its parents; the icons must not be inside the selector."""
+    protokol.save_gate(Gate("pad", "fake", "in", device="nowhere", options={"port": 3}))
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    assert not _clicks(one(user, "gate-row-pad"))
+    area = one(user, "gate-select-pad")
+    assert _clicks(area)
+    for icon in ("gate-edit-pad", "gate-delete-pad", "gate-monitor-pad", "gate-bind-pad"):
+        assert not _inside(one(user, icon), area), icon
+
+
+async def test_change_signal_keeps_an_open_dialog(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    protokol.save_gate(Gate("in", "fake", "in", options={"port": 1}))
+    editor = await open_editor(user, GatesEditor, make_context(protokol, selection))
+    user.find(marker="gate-edit-in").click()
+    dialog = one(user, "gate-dialog")
+    editor._on_change(editor._context, None)
+    assert not dialog.is_deleted
+    assert dialog.value

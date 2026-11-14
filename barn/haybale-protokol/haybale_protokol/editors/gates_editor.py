@@ -11,7 +11,7 @@ from typing import Any
 
 from haywire.core.access import AccessTier
 from haywire.core.session.context import SessionContext
-from haywire.core.session.handlers import redraw_on
+from haywire.core.session.handlers import react_on
 from haywire.core.signals import Reveal
 from haywire.ui import elements as hui
 from haywire.ui.editor.base import BaseEditor
@@ -19,8 +19,8 @@ from haywire.ui.editor.decorator import editor
 from haywire.ui.editor.identity import SlotName
 from nicegui import ui
 
-from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
 from haybale_protokol.gate_form import GateForm
+from haybale_protokol.gate_status import gate_status
 from haybale_protokol.editor_layout import list_block, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import icon as icons
@@ -54,9 +54,14 @@ class GatesEditor(BaseEditor):
         self._dialog_host: ui.element | None = None
         self._dialog: ui.dialog | None = None
 
-    @redraw_on(ProtokolChanged, ProtokolSelection.gate, ProtokolSelection.line, ProtokolSelection.device)
+    @react_on(ProtokolChanged, ProtokolSelection.gate, ProtokolSelection.line, ProtokolSelection.device)
     def _on_change(self, context: SessionContext, signal: Any) -> None:
-        """Redraw: the gates, a Line or the selection changed."""
+        """Refresh the rows: the gates, a Line or the selection changed.
+
+        Only the rows: a full redraw would destroy an open dialog and what was typed in it.
+        """
+        self._context = context
+        self._draw_rows()
 
     def draw(self, context: SessionContext, container: ui.element) -> None:
         self._context = context
@@ -107,17 +112,19 @@ class GatesEditor(BaseEditor):
     def _draw_row(self, gate: Gate, status: str) -> None:
         """Name, tags and actions on one row; the status on a full-width line below."""
         selected = self._selection().gate == gate.name
-        with (
-            list_block(active=selected)
-            .classes("cursor-pointer")
-            .on("click", lambda _e=None, g=gate: self._selection().select_gate(g.name))
-            .mark(f"gate-row-{gate.name}")
-        ):
+        select = lambda _e=None, g=gate: self._selection().select_gate(g.name)  # noqa: E731
+        with list_block(active=selected).mark(f"gate-row-{gate.name}"):
             with ui.row().classes("w-full items-center gap-1 no-wrap"):
-                hui.subject(gate.name).classes("truncate min-w-0")
-                hui.tag(gate.protocol)
-                hui.tag(gate.direction)
-                ui.space()
+                # Only the name area selects: a click on an icon would bubble to a row-wide handler.
+                with (
+                    ui.row()
+                    .classes("flex-1 min-w-0 items-center gap-1 no-wrap cursor-pointer")
+                    .on("click", select)
+                    .mark(f"gate-select-{gate.name}")
+                ):
+                    hui.subject(gate.name).classes("truncate min-w-0")
+                    hui.tag(gate.protocol)
+                    hui.tag(gate.direction)
                 if status.startswith("unbound gate"):
                     hui.icon_action(
                         icons.bind,
@@ -139,7 +146,9 @@ class GatesEditor(BaseEditor):
                         tooltip="Delete",
                         on_click=lambda n=gate.name: self._confirm_delete(n),
                     ).mark(f"gate-delete-{gate.name}")
-            hui.hint(status).classes("truncate w-full").tooltip(status).mark(f"gate-status-{gate.name}")
+            hui.hint(status).classes("truncate w-full cursor-pointer").tooltip(status).on(
+                "click", select
+            ).mark(f"gate-status-{gate.name}")
 
     def _draw_broken_row(self, name: str, error: str) -> None:
         with list_block().mark(f"gate-row-{name}"):
@@ -237,23 +246,6 @@ class GatesEditor(BaseEditor):
             self._state().delete_gate(name)
         dialog.close()
         self._draw_rows()
-
-
-def gate_status(state: ProtokolState, gate: Gate) -> str:
-    """One line on whether ``gate`` can be used and how its Line is doing."""
-    if state.driver(gate.protocol) is None:
-        return "protocol not installed"
-    if gate.device is not None:
-        try:
-            known = gate.device in load_devices(device_list_path())
-        except DeviceListError as exc:
-            return f"device list: {exc}"
-        if not known:
-            return f"unbound gate: no device '{gate.device}' on this machine"
-    line = state.line_of(gate)
-    if line is None:
-        return "closed"
-    return f"{line.status} · {line.users} users"
 
 
 def _draw_gate_details(gate: Gate) -> None:

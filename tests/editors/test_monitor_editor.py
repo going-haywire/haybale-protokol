@@ -317,3 +317,17 @@ async def test_eye_sits_with_the_icons_and_status_aligns_with_name(
     name = next(i for i, c in enumerate(children) if getattr(c, "text", None) == "in")
     assert name < eye < children.index(one(user, "monitor-clear-in"))
     assert not any(c.startswith(("pl-", "ml-")) for c in one(user, "monitor-count-in").classes)
+
+
+async def test_change_signal_keeps_dialog_and_send_text(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-out").click()
+    set_value(user, "monitor-send-input-out", "/typed 1")
+    user.find(marker="monitor-new-line").click()
+    dialog = one(user, "monitor-new-line-dialog")
+    editor._on_change(editor._context, None)
+    assert not dialog.is_deleted
+    assert dialog.value
+    assert one(user, "monitor-send-input-out").value == "/typed 1"

@@ -16,7 +16,7 @@ from typing import Any
 
 from haywire.core.access import AccessTier
 from haywire.core.session.context import SessionContext
-from haywire.core.session.handlers import react_on, redraw_on
+from haywire.core.session.handlers import react_on
 from haywire.ui import elements as hui
 from haywire.ui.editor.base import BaseEditor
 from haywire.ui.editor.decorator import editor
@@ -70,6 +70,8 @@ class MonitorEditor(BaseEditor):
         self._gates: dict[str, Gate] = {}
         self._split: float = SPLIT_START
         """Where the user left the divider, kept across redraws."""
+        self._send_text: dict[str, str] = {}
+        """What was typed in each line's test-send field, kept across refreshes."""
         self._hidden: set[str] = set()
         """Watched lines whose messages the output hides."""
         self._senders: dict[str, LineUse] = {}
@@ -88,9 +90,11 @@ class MonitorEditor(BaseEditor):
 
     # -- signals ---------------------------------------------------------------------------
 
-    @redraw_on(ProtokolChanged)
+    @react_on(ProtokolChanged)
     def _on_change(self, context: SessionContext, signal: Any) -> None:
-        """Redraw: gates or Lines changed."""
+        """Refresh the line list: gates or Lines changed (an open dialog and typed text stay)."""
+        self._context = context
+        self._draw_sources()
 
     @react_on(ProtokolSelection.gate, ProtokolSelection.line)
     def _on_selection(self, context: SessionContext, signal: Any) -> None:
@@ -240,7 +244,11 @@ class MonitorEditor(BaseEditor):
                 return
             with ui.row().classes("w-full items-center gap-1 no-wrap"):
                 field = (
-                    hui.input_field(placeholder="Test message")
+                    hui.input_field(
+                        placeholder="Test message",
+                        value=self._send_text.get(key, ""),
+                        on_change=lambda e: self._send_text.__setitem__(key, str(e.value or "")),
+                    )
                     .classes("flex-1")
                     .mark(f"monitor-send-input-{key}")
                 )
