@@ -304,3 +304,16 @@ async def test_divider_is_drawn_in_a_theme_colour(
     style = one(user, "monitor-splitter").props.get("separator-style")
     assert isinstance(style, str)
     assert "var(--hw-separator" in style
+
+
+async def test_eye_sits_with_the_icons_and_status_aligns_with_name(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    head = one(user, "monitor-visibility-in").parent_slot.parent
+    children = list(head.default_slot.children)
+    eye = children.index(one(user, "monitor-visibility-in"))
+    name = next(i for i, c in enumerate(children) if getattr(c, "text", None) == "in")
+    assert name < eye < children.index(one(user, "monitor-clear-in"))
+    assert not any(c.startswith(("pl-", "ml-")) for c in one(user, "monitor-count-in").classes)
