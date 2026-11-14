@@ -162,3 +162,19 @@ async def test_bind_selects_device(
     await open_editor(user, GatesEditor, make_context(protokol, selection))
     user.find(marker="gate-bind-pad").click()
     assert selection.device == "nowhere"
+
+
+async def test_monitor_button_selects_and_reveals(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    from haybale_protokol.editors.monitor_editor import MonitorEditor
+    from haywire.core.signals import Reveal
+
+    protokol.save_gate(Gate("in", "fake", "in", options={"port": 1}))
+    context = make_context(protokol, selection, edit=False)
+    await open_editor(user, GatesEditor, context)
+    user.find(marker="gate-monitor-in").click()
+    assert selection.gate == "in"
+    published = context.session.publish.call_args.args[0]
+    assert isinstance(published, Reveal)
+    assert published.editor is MonitorEditor
