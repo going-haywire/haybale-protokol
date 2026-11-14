@@ -20,7 +20,7 @@ tags = ["midi", "control", "protocol", "device"]  # filter tags in the library b
 
 # Sibling haybales this library subscribes to, as MODULE names (not
 # distribution names). Required for hot-reload scope tracking.
-linked_libraries = ["haybale_protokol"]
+linked_libraries = ["haybale_protokol", "haybale_core"]
 
 # ── declared paths, relative to the project root ────────────────────────────
 # examples_path = "examples/"
