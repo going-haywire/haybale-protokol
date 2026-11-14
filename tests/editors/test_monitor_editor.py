@@ -406,3 +406,17 @@ async def test_log_order_follows_the_bottom_unless_scrolled_up(
     driver.connections[0].push("/a", 3)
     editor._refresh()
     assert scrolls == [1.0, 1.0]
+
+
+async def test_toggling_scrolls_to_where_the_newest_rows_are(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    driver.connections[0].push("/a", 1)
+    scrolls: list[float | None] = []
+    editor._messages_area.scroll_to = lambda **kw: scrolls.append(kw.get("percent"))
+    user.find(marker="monitor-order").click()
+    assert scrolls[-1] == 1.0, "log order: to the bottom"
+    user.find(marker="monitor-order").click()
+    assert scrolls[-1] == 0.0, "newest first: back to the top"
