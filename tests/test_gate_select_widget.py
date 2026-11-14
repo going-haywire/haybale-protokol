@@ -92,10 +92,21 @@ def test_protocol_not_installed_is_a_warning(tmp_path: Path, monkeypatch: pytest
     assert gate_tone(state, "ok", "fake", "in") == "warning"
 
 
-def test_chip_template_colours_by_tone_with_theme_tokens() -> None:
+def test_chip_template_reads_the_option_label() -> None:
+    """NiceGUI hands Quasar options as {value, label}: the name is props.opt.label, never props.opt."""
+    template = chip_template({"ok": "success"})
+    assert "props.opt.label" in template
+    assert "{{ props.opt }}" not in template
+    assert "[props.opt]" not in template
+
+
+def test_chip_is_quiet_with_a_status_dot_in_theme_tokens() -> None:
     template = chip_template({"ok": "success", 'we"ird': "danger"})
     assert "hw-text-success" in template
     assert "hw-text-danger" in template
+    assert "var(--hw-bg-elevated)" in template
+    assert "var(--hw-text-body)" in template
+    assert "currentColor" in template, "the dot takes its tone's colour"
     assert '"we\\"ird"' in template, "names are JSON-escaped"
     assert "#" not in template, "no hard-coded colours"
 

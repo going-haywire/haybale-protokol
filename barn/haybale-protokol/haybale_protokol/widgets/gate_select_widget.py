@@ -75,16 +75,29 @@ def gate_tone(state: ProtokolState, name: str, protocol: str, direction: str) ->
     return "success"
 
 
+#: The gate name of a select option: NiceGUI hands Quasar ``{value, label}`` objects; a typed value
+#: may arrive bare.
+_NAME = "(props.opt.label ?? props.opt)"
+
+#: A quiet chip (design guide §1.3): surface background, body text; the state is a dot.
+_CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
+_DOT_STYLE = (
+    "display: inline-block; width: 6px; height: 6px; border-radius: 50%; "
+    "background: currentColor; margin-right: 4px; flex-shrink: 0"
+)
+
+
 def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
-    """The select's ``selected-item`` slot: each chosen gate as a chip, its text in its tone's token."""
+    """The select's ``selected-item`` slot: each chosen gate with a dot in its state's theme colour."""
     classes = {name: _TONE_CLASS[tone] for name, tone in tones.items()}
     lookup = json.dumps(classes).replace("'", "\\u0027")  # inside a single-quoted attribute
-    text = f"<span :class='({lookup})[props.opt] || \"{_TONE_CLASS['danger']}\"'>{{{{ props.opt }}}}</span>"
+    dot = f'<span :class=\'({lookup})[{_NAME}] || "{_TONE_CLASS["danger"]}"\' style="{_DOT_STYLE}"></span>'
+    label = f"<span>{{{{ {_NAME} }}}}</span>"
     if not removable:
-        return text
+        return f'<span class="row items-center no-wrap">{dot}{label}</span>'
     return (
-        '<q-chip dense removable :tabindex="props.tabindex" @remove="props.removeAtIndex(props.index)">'
-        f"{text}</q-chip>"
+        f'<q-chip dense square removable :tabindex="props.tabindex" style="{_CHIP_STYLE}" '
+        f'@remove="props.removeAtIndex(props.index)">{dot}{label}</q-chip>'
     )
 
 
