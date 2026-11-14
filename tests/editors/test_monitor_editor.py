@@ -126,15 +126,6 @@ async def test_new_line_and_save_as_gate(
     assert len(protokol.lines()) == 1, "the Line was handed over, not reopened"
 
 
-async def test_selection_ticks_source(
-    user: User, protokol: ProtokolState, selection: ProtokolSelection
-) -> None:
-    editor = await _monitor(user, protokol, selection)
-    selection.select_gate("in")
-    editor._on_selection(editor._context, None)
-    assert "in" in editor._taps
-
-
 async def test_closing_monitor_releases_taps(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
@@ -331,3 +322,35 @@ async def test_change_signal_keeps_dialog_and_send_text(
     assert not dialog.is_deleted
     assert dialog.value
     assert one(user, "monitor-send-input-out").value == "/typed 1"
+
+
+async def test_selecting_a_closed_gate_does_not_open_its_line(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    selection.select_gate("in")
+    editor._on_selection(editor._context, None)
+    assert editor._taps == {}
+    assert protokol.lines() == []
+
+
+async def test_selecting_an_open_gate_ticks_it(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    keeper = protokol.use("in", "in")
+    assert isinstance(keeper, LineUse)
+    selection.select_gate("in")
+    editor._on_selection(editor._context, None)
+    assert "in" in editor._taps
+    editor.cleanup()
+    keeper.release()
+
+
+def test_copied_rows_keep_their_columns_apart() -> None:
+    from haybale_protokol.editors.monitor_editor import _messages_html
+
+    row = {"time": "16:00:28.479", "source": "Mix", "direction": "out", "address": "/t", "description": "x"}
+    html = _messages_html([row])
+    assert "16:00:28.479</span> <span" in html
+    assert "Mix</span> <span" in html
