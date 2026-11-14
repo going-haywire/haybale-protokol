@@ -6,7 +6,9 @@ import time
 from typing import Any
 
 from haywire.core.execution.execution_context import ExecutionContext
+from haywire.barn.builtin.types import BOOL
 from haywire.core.node import BaseNode, NodeType, node
+from haywire.core.settings import NodeSettings, Promotable, bag, setting
 from haywire.core.types import PortOrigin
 
 from haybale_protokol.drivers import Message
@@ -35,6 +37,23 @@ SHAPE_HELP = (
 )
 
 
+class SendSettings(NodeSettings):
+    """When a control tick sends."""
+
+    only_changes = setting[BOOL](
+        False,
+        label="Only send changes",
+        category="Sending",
+        description=(
+            "Off: every control tick sends the message. On: a tick sends only when the address, "
+            "type tags or values differ from the last message sent; the first tick of a run always "
+            "sends, and a dropped send is retried on the next tick. Skipped ticks are counted as "
+            "'unchanged' in status."
+        ),
+        promotable=Promotable.CONFIG,
+    )
+
+
 @node(
     label="OSC Send",
     description="Sends one OSC message to an output gate each time it runs",
@@ -55,6 +74,8 @@ class OscSendNode(ArgPins, BaseNode):
         shape: The OSC type tags sent last
         status: What was sent and dropped, or why nothing can be sent
     """
+
+    sending = bag(SendSettings)
 
     def init(self) -> None:
         from haywire.barn.builtin.types import ADD, EXEC, STRING
@@ -83,6 +104,8 @@ class OscSendNode(ArgPins, BaseNode):
         self._use: LineUse | None = None
         self._sent = 0
         self._dropped = 0
+        self._unchanged = 0
+        self._last_sent: tuple[Any, ...] | None = None
         self._problem = ""
 
     # -- ports -------------------------------------------------------------------
@@ -105,7 +128,8 @@ class OscSendNode(ArgPins, BaseNode):
     # -- running -----------------------------------------------------------------
 
     def on_startup(self, context: ExecutionContext) -> None:
-        self._sent = self._dropped = 0
+        self._sent = self._dropped = self._unchanged = 0
+        self._last_sent = None
         self._problem = ""
         result = get_protokol_state().use(str(self.value("gate") or ""), "out")
         self._use = result if isinstance(result, LineUse) else None
@@ -131,7 +155,11 @@ class OscSendNode(ArgPins, BaseNode):
                 self._problem = str(exc)
             else:
                 address = str(self.value("address") or "/")
-                if self._use.line.send(Message(address, args, time.time(), {"types": tags})):
+                sent_as = (address, tags, args)
+                if self.sending.only_changes and sent_as == self._last_sent:
+                    self._unchanged += 1
+                elif self._use.line.send(Message(address, args, time.time(), {"types": tags})):
+                    self._last_sent = sent_as
                     self._sent += 1
                     self._problem = ""
                     self.out("shape", tags)
@@ -144,7 +172,10 @@ class OscSendNode(ArgPins, BaseNode):
     def _status(self) -> str:
         if self._use is None:
             return self._problem
-        parts = [f"sent {self._sent}", f"dropped {self._dropped}"]
+        parts = [f"sent {self._sent}"]
+        if self._unchanged:
+            parts.append(f"unchanged {self._unchanged}")
+        parts.append(f"dropped {self._dropped}")
         if self._problem:
             parts.append(self._problem)
         return " · ".join(parts)

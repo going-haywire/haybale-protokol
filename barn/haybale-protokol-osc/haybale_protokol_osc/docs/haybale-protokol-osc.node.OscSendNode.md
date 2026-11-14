@@ -17,6 +17,12 @@ Sends one OSC message to an output gate each time it runs
 | `shape` | outlet | `haywire-core:type:STRING` | Text data |
 | `status` | outlet | `haywire-core:type:STRING` | Text data |
 
+## Settings
+
+| name | bag | default | description |
+|---|---|---|---|
+| `only_changes` | sending | `False` | Off: every control tick sends the message. On: a tick sends only when the address, type tags or values differ from the last message sent; the first tick of a run always sends, and a dropped send is retried on the next tick. Skipped ticks are counted as 'unchanged' in status. |
+
 ## Notes
 
 Sends `Address` with one argument per argument inlet, in inlet order, to its gate.
