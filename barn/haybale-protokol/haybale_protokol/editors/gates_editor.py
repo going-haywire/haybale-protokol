@@ -21,7 +21,7 @@ from nicegui import ui
 
 from haybale_protokol.devices import DeviceListError, device_list_path, load_devices
 from haybale_protokol.gate_form import GateForm
-from haybale_protokol.editor_layout import list_row, scroll_area
+from haybale_protokol.editor_layout import list_block, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import icon as icons
 from haybale_protokol.signals import ProtokolChanged
@@ -105,47 +105,52 @@ class GatesEditor(BaseEditor):
                     self._draw_row(gate, gate_status(state, gate))
 
     def _draw_row(self, gate: Gate, status: str) -> None:
+        """Name, tags and actions on one row; the status on a full-width line below."""
         selected = self._selection().gate == gate.name
         with (
-            list_row(active=selected)
+            list_block(active=selected)
+            .classes("cursor-pointer")
             .on("click", lambda _e=None, g=gate: self._selection().select_gate(g.name))
             .mark(f"gate-row-{gate.name}")
         ):
-            with ui.column().classes("gap-0 flex-1 min-w-0"):
-                with ui.row().classes("items-center gap-1 no-wrap"):
-                    hui.subject(gate.name).classes("truncate")
-                    hui.tag(gate.protocol)
-                    hui.tag(gate.direction)
-                hui.hint(status).classes("truncate w-full").mark(f"gate-status-{gate.name}")
-            if status.startswith("unbound gate"):
+            with ui.row().classes("w-full items-center gap-1 no-wrap"):
+                hui.subject(gate.name).classes("truncate min-w-0")
+                hui.tag(gate.protocol)
+                hui.tag(gate.direction)
+                ui.space()
+                if status.startswith("unbound gate"):
+                    hui.icon_action(
+                        icons.bind,
+                        tooltip="Bind…",
+                        on_click=lambda g=gate: self._selection().select_device(g.device),
+                    ).mark(f"gate-bind-{gate.name}")
                 hui.icon_action(
-                    icons.bind,
-                    tooltip="Bind…",
-                    on_click=lambda g=gate: self._selection().select_device(g.device),
-                ).mark(f"gate-bind-{gate.name}")
-            hui.icon_action(
-                icons.monitor, tooltip="Monitor", on_click=lambda g=gate: self._open_monitor(g)
-            ).mark(f"gate-monitor-{gate.name}")
-            editable = self._can_edit()
-            hui.icon_action(
-                hui.icon.edit if editable else hui.icon.view,
-                tooltip="Edit" if editable else "Details",
-                on_click=lambda g=gate: self._open_edit(g),
-            ).mark(f"gate-edit-{gate.name}")
-            if editable:
+                    icons.monitor, tooltip="Monitor", on_click=lambda g=gate: self._open_monitor(g)
+                ).mark(f"gate-monitor-{gate.name}")
+                editable = self._can_edit()
                 hui.icon_action(
-                    hui.icon.delete, tooltip="Delete", on_click=lambda n=gate.name: self._confirm_delete(n)
-                ).mark(f"gate-delete-{gate.name}")
+                    hui.icon.edit if editable else hui.icon.view,
+                    tooltip="Edit" if editable else "Details",
+                    on_click=lambda g=gate: self._open_edit(g),
+                ).mark(f"gate-edit-{gate.name}")
+                if editable:
+                    hui.icon_action(
+                        hui.icon.delete,
+                        tooltip="Delete",
+                        on_click=lambda n=gate.name: self._confirm_delete(n),
+                    ).mark(f"gate-delete-{gate.name}")
+            hui.hint(status).classes("truncate w-full").tooltip(status).mark(f"gate-status-{gate.name}")
 
     def _draw_broken_row(self, name: str, error: str) -> None:
-        with list_row().classes("cursor-default").mark(f"gate-row-{name}"):
-            with ui.column().classes("gap-0 flex-1 min-w-0"):
-                hui.subject(name).classes("truncate")
-                hui.error_label(error).classes("truncate w-full").mark(f"gate-status-{name}")
-            if self._can_edit():
-                hui.icon_action(
-                    hui.icon.delete, tooltip="Delete", on_click=lambda n=name: self._confirm_delete(n)
-                ).mark(f"gate-delete-{name}")
+        with list_block().mark(f"gate-row-{name}"):
+            with ui.row().classes("w-full items-center gap-1 no-wrap"):
+                hui.subject(name).classes("truncate min-w-0")
+                ui.space()
+                if self._can_edit():
+                    hui.icon_action(
+                        hui.icon.delete, tooltip="Delete", on_click=lambda n=name: self._confirm_delete(n)
+                    ).mark(f"gate-delete-{name}")
+            hui.error_label(error).classes("truncate w-full").tooltip(error).mark(f"gate-status-{name}")
 
     def _open_monitor(self, gate: Gate) -> None:
         """Select the gate and open the Monitor, which ticks the selection."""

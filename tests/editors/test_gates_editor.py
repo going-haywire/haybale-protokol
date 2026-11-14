@@ -196,3 +196,16 @@ async def test_selected_row_uses_the_active_token(
     assert "hw-list-item-active" in one(user, "gate-row-in").classes
     assert "hw-list-item-active" not in one(user, "gate-row-out").classes
     assert not any(c.startswith("bg-") for c in one(user, "gate-row-in").classes)
+
+
+async def test_row_puts_name_tags_and_icons_in_one_row_status_below(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    protokol.save_gate(Gate("in", "fake", "in", options={"port": 1}))
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    block = one(user, "gate-row-in")
+    head = one(user, "gate-edit-in").parent_slot.parent
+    assert head.parent_slot.parent is block
+    assert one(user, "gate-monitor-in").parent_slot.parent is head
+    assert one(user, "gate-delete-in").parent_slot.parent is head
+    assert one(user, "gate-status-in").parent_slot.parent is block
