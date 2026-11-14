@@ -21,7 +21,7 @@ Sends one OSC message to an output gate each time it runs
 
 | name | bag | default | description |
 |---|---|---|---|
-| `only_changes` | sending | `False` | Off: every control tick sends the message. On: a tick sends only when the address, type tags or values differ from the last message sent; the first tick of a run always sends, and a dropped send is retried on the next tick. Skipped ticks are counted as 'unchanged' in status. |
+| `only_changes` | sending | `False` | Off: every control tick sends the message. On: a tick sends to a gate only when the message differs from the last one that gate took; the first tick of a run always sends, and a gate that missed a message gets it on the next tick. Skipped ticks are counted as 'unchanged' in status. |
 
 ## Notes
 

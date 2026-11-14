@@ -1,0 +1,48 @@
+# Protokol MIDI
+
+MIDI 1.0 for Haywire, on top of `haybale-protokol`: a MIDI Receive node and a MIDI Send node,
+using gates from the project's `.haywire/protokol.toml` (see the Protokol notes for the file).
+
+## Gates and Devices
+
+A MIDI gate is `in` or `out` and names a **Device**:
+
+```toml
+[gates.keys]
+protocol = "midi"
+direction = "in"
+device = "keys"
+```
+
+The Device list on this machine (`~/.haywire/protokol-devices.toml`, edited in the Device
+editor) maps the name to a MIDI port, so a colleague's project works on their machine once they
+map `keys` to their own keyboard. MIDI inputs and outputs are separate ports with their own
+names. A gate whose port is not connected reports `cannot open: no MIDI port '…'` and the graph
+runs on.
+
+## Kinds
+
+Both nodes have a **Kind**, a **Channel** (1–16, or 0 for any) and a **Number** (note or
+controller, 0–127, or −1 for any). Their pins follow them:
+
+| Kind | Pins | Notes |
+|---|---|---|
+| note | note, velocity, on | `on` is False for note off and for note on with velocity 0 |
+| cc | controller, value | |
+| pitchbend | value | −8192…8191 |
+| aftertouch | value | channel pressure; polyphonic aftertouch comes through `raw` |
+| program | program | |
+| sysex | data | without the F0/F7 framing |
+| transport | event, position | clock, start, continue, stop, songpos |
+| raw | bytes | every message as it is |
+
+A channel, note or controller pin appears when its filter is "any". On MIDI Receive, values (cc,
+pitch bend, aftertouch) fire their last value when the graph starts and keep only the newest
+message when the flow runs behind; events (notes, programs, transport) queue every message.
+MIDI Send sends on each control tick, or with **Only send changes** only when the message
+differs from the last one a gate took. An out-of-range value is dropped and named in status.
+
+## Monitor test messages
+
+`note 1 60 100`, `note 1 60 off`, `cc 1 7 64`, `pb 1 -200`, `at 1 64`, `pc 1 5`,
+`sysex 7D 01 02`, `clock`, `start`, `continue`, `stop`, `raw 90 3C 64` (hex).
