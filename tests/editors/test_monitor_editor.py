@@ -243,3 +243,42 @@ async def test_tapped_source_row_is_active(
     assert "hw-list-item-active" in one(user, "monitor-source-in").classes
     assert "hw-list-item-active" not in one(user, "monitor-source-out").classes
     assert one(user, "monitor-visibility-in").props["icon"] == "visibility"
+
+
+async def test_hidden_line_has_no_clear_or_export(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    await user.should_see(marker="monitor-clear-in")
+    await user.should_see(marker="monitor-export-in")
+    user.find(marker="monitor-visibility-in").click()
+    await user.should_not_see(marker="monitor-clear-in")
+    await user.should_not_see(marker="monitor-export-in")
+    await user.should_see(marker="monitor-close-in")
+
+
+async def test_only_shown_lines_are_highlighted(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    assert "hw-list-item-active" in one(user, "monitor-source-in").classes
+    user.find(marker="monitor-visibility-in").click()
+    assert "hw-list-item-active" not in one(user, "monitor-source-in").classes
+
+
+async def test_divider_between_lines_and_output_is_draggable(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    from nicegui import ui
+
+    editor = await _monitor(user, protokol, selection)
+    splitter = one(user, "monitor-splitter")
+    assert isinstance(splitter, ui.splitter)
+    splitter.set_value(40)
+    assert editor._split == 40
+    with user:
+        editor.draw(editor._context, ui.column())
+    assert editor._split == 40
+    assert [s.value for s in user.find(kind=ui.splitter).elements] == [40, 40]

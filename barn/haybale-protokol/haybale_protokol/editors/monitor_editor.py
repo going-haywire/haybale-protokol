@@ -39,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 #: Seconds between two redraws of the table, at most.
 MONITOR_REFRESH_S = 0.2
+#: Where the divider between the lines and the output starts, and how far it may go (percent).
+SPLIT_START = 25
+SPLIT_LIMITS = (10, 70)
 #: Rows the table shows, newest first.
 MONITOR_ROWS = 300
 
@@ -65,6 +68,8 @@ class MonitorEditor(BaseEditor):
         self._context: SessionContext | None = None
         self._taps: dict[str, Tap] = {}
         self._gates: dict[str, Gate] = {}
+        self._split: float = SPLIT_START
+        """Where the user left the divider, kept across redraws."""
         self._hidden: set[str] = set()
         """Watched lines whose messages the output hides."""
         self._senders: dict[str, LineUse] = {}
@@ -131,16 +136,23 @@ class MonitorEditor(BaseEditor):
                             hui.icon.add, tooltip="New line…", on_click=self._open_new_line
                         ).mark("monitor-new-line")
                 self._status = hui.hint("").classes("px-2").mark("monitor-status")
-                with ui.row().classes("w-full flex-1 gap-0 no-wrap min-h-0"):
-                    with ui.column().classes("w-72 flex-shrink-0 h-full gap-0"):
-                        with scroll_area():
-                            self._sources_box = ui.column().classes("w-full gap-0 p-1")
-                    hui.separator(vertical=True)
-                    with ui.column().classes("flex-1 h-full min-w-0 gap-0"):
-                        with scroll_area():
-                            self._messages = (
-                                ui.html("", sanitize=False).classes("w-full p-1").mark("monitor-messages")
-                            )
+                with (
+                    ui.splitter(value=self._split, limits=SPLIT_LIMITS, on_change=self._set_split)
+                    .classes("w-full flex-1 min-h-0")
+                    .mark("monitor-splitter") as splitter
+                ):
+                    with splitter.before:
+                        with ui.column().classes("w-full h-full gap-0"):
+                            with scroll_area():
+                                self._sources_box = ui.column().classes("w-full gap-0 p-1")
+                    with splitter.after:
+                        with ui.column().classes("w-full h-full min-w-0 gap-0"):
+                            with scroll_area():
+                                self._messages = (
+                                    ui.html("", sanitize=False)
+                                    .classes("w-full p-1")
+                                    .mark("monitor-messages")
+                                )
                 ui.timer(MONITOR_REFRESH_S, self._refresh)
             self._dialog_host = root
         self._shown = ()
@@ -160,7 +172,8 @@ class MonitorEditor(BaseEditor):
                 hui.hint("No gates or open Lines.").classes("px-2")
             for key, gate in sources.items():
                 tapped = key in self._taps
-                with list_row(active=tapped).classes("cursor-default").mark(f"monitor-source-{key}"):
+                shown = tapped and key not in self._hidden
+                with list_row(active=shown).classes("cursor-default").mark(f"monitor-source-{key}"):
                     self._draw_visibility(key, gate, tapped, can_edit or state.line_of(gate) is not None)
                     with ui.column().classes("flex-1 gap-0 min-w-0"):
                         ui.label(key).classes("text-sm font-medium truncate")
@@ -169,7 +182,7 @@ class MonitorEditor(BaseEditor):
                                 ui.label("").classes("text-xs hw-text-dim").mark(f"monitor-count-{key}")
                             )
                     if tapped:
-                        self._draw_line_actions(key, can_edit)
+                        self._draw_line_actions(key, can_edit, shown=shown)
                 if tapped and can_edit and gate.direction in ("out", "two-way"):
                     self._draw_send_row(key, gate)
         self._update_counts()
@@ -193,22 +206,26 @@ class MonitorEditor(BaseEditor):
             on_click=lambda: self._toggle_hidden(key),
         ).mark(f"monitor-visibility-{key}")
 
-    def _draw_line_actions(self, key: str, can_edit: bool) -> None:
+    def _draw_line_actions(self, key: str, can_edit: bool, *, shown: bool) -> None:
+        """Save as gate, Clear, Export and Stop watching; a hidden line keeps only Save and Stop."""
         if key.startswith("~") and can_edit:
             hui.icon_action(
                 hui.icon.save, tooltip="Save as gate…", on_click=lambda: self._open_save_as(key)
             ).mark(f"monitor-save-as-{key}")
-        hui.icon_action(hui.icon.clear, tooltip="Clear this line", on_click=lambda: self._clear(key)).mark(
-            f"monitor-clear-{key}"
-        )
-        with hui.icon_action(hui.icon.download, tooltip="Export this line").mark(f"monitor-export-{key}"):
-            with ui.menu():
-                hui.menu_row("As JSONL", on_click=lambda: self._export("jsonl", key)).mark(
-                    f"monitor-export-jsonl-{key}"
-                )
-                hui.menu_row(
-                    "As CSV", icon=icons.export_csv, on_click=lambda: self._export("csv", key)
-                ).mark(f"monitor-export-csv-{key}")
+        if shown:
+            hui.icon_action(
+                hui.icon.clear, tooltip="Clear this line", on_click=lambda: self._clear(key)
+            ).mark(f"monitor-clear-{key}")
+            with hui.icon_action(hui.icon.download, tooltip="Export this line").mark(
+                f"monitor-export-{key}"
+            ):
+                with ui.menu():
+                    hui.menu_row("As JSONL", on_click=lambda: self._export("jsonl", key)).mark(
+                        f"monitor-export-jsonl-{key}"
+                    )
+                    hui.menu_row(
+                        "As CSV", icon=icons.export_csv, on_click=lambda: self._export("csv", key)
+                    ).mark(f"monitor-export-csv-{key}")
         hui.icon_action(hui.icon.close, tooltip="Stop watching", on_click=lambda: self._stop(key)).mark(
             f"monitor-close-{key}"
         )
@@ -364,6 +381,9 @@ class MonitorEditor(BaseEditor):
                 label.set_text(f"received {tap.received} · dropped {tap.dropped}")
 
     # -- actions ---------------------------------------------------------------------------
+
+    def _set_split(self, event: Any) -> None:
+        self._split = float(event.value)
 
     def _set_filter(self, event: Any) -> None:
         self._filter = str(event.value or "")
