@@ -97,3 +97,49 @@ def test_send_to_two_gates_and_skip_a_missing_one(graph: BaseGraph, tmp_path: Pa
     finally:
         a.close()
         b.close()
+
+
+def test_only_changes_retries_a_gate_that_failed(graph: BaseGraph, tmp_path: Path) -> None:
+    a = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    for sock in (a, b):
+        sock.bind(("127.0.0.1", 0))
+    node = make_node(graph, OscSendNode.class_identity.registry_key).node
+    node.ports["gate"].set_value("a, b")
+    node.ports["address"].set_value("/x")
+    node.sending.only_changes = True
+    context = MagicMock()
+    try:
+        with protokol_project(tmp_path, _out("a", a), _out("b", b)):
+            node.on_startup(context)
+            real_send = node._uses["b"].line.send
+            node._uses["b"].line.send = lambda message: False  # b is down for the first tick
+            node.worker(context)
+            node._uses["b"].line.send = real_send
+            node.worker(context)  # same message: only b, which missed it, gets it now
+            node.worker(context)  # same message again: nobody needs it
+            status = str(node.value("status"))
+            node.on_shutdown(context)
+        assert len(_drain(a)) == 1
+        assert len(_drain(b)) == 1
+        assert "unchanged 1" in status
+    finally:
+        a.close()
+        b.close()
+
+
+def test_statuses_name_the_gate_that_failed(graph: BaseGraph, tmp_path: Path) -> None:
+    port = free_udp_port()
+    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive.node.ports["gate"].set_value("a, m")
+    send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0)).node
+    send.ports["gate"].set_value("m")
+    gates = (_in("a", port), Gate("m", "midi", "in"), Gate("m", "midi", "out"))
+    with protokol_project(tmp_path, gates[0], gates[1]), running(graph):
+        assert wait_until(lambda: "m: protocol not installed" in str(receive.node.value("status")))
+    context = MagicMock()
+    with protokol_project(tmp_path, Gate("m", "midi", "out")):
+        send.on_startup(context)
+        status = str(send.value("status"))
+        send.on_shutdown(context)
+    assert "m: protocol not installed" in status

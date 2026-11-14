@@ -12,7 +12,7 @@ from haywire.core.settings import NodeSettings, Promotable, bag, setting
 from haywire.core.types import PortOrigin
 
 from haybale_protokol.drivers import Message
-from haybale_protokol.gate_names import gate_names
+from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.states.protokol_state import LineUse
 from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
@@ -119,7 +119,8 @@ class OscSendNode(ArgPins, BaseNode):
         self._sent = 0
         self._dropped = 0
         self._unchanged = 0
-        self._last_sent: tuple[Any, ...] | None = None
+        self._last_sent: dict[str, tuple[Any, ...]] = {}
+        """The last message each gate took, for Only send changes."""
         self._problem = ""
 
     # -- ports -------------------------------------------------------------------
@@ -143,7 +144,7 @@ class OscSendNode(ArgPins, BaseNode):
 
     def on_startup(self, context: ExecutionContext) -> None:
         self._sent = self._dropped = self._unchanged = 0
-        self._last_sent = None
+        self._last_sent = {}
         self._problem = ""
         self._uses = {}
         self._gate_problems = {}
@@ -154,7 +155,7 @@ class OscSendNode(ArgPins, BaseNode):
             if isinstance(result, LineUse):
                 self._uses[name] = result
             else:
-                self._gate_problems[name] = str(result)
+                self._gate_problems[name] = named_status(name, str(result))
         if not names:
             self._problem = "no gate set"
         self.post_value("status", self._status())
@@ -185,16 +186,26 @@ class OscSendNode(ArgPins, BaseNode):
             return
         address = str(self.value("address") or "/")
         sent_as = (address, tags, args)
-        if self.sending.only_changes and sent_as == self._last_sent:
+        # Per gate, so a gate that missed a message still gets it although another took it.
+        targets = [
+            name
+            for name in self._uses
+            if not self.sending.only_changes or self._last_sent.get(name) != sent_as
+        ]
+        if not targets:
             self._unchanged += 1
             return
         message = Message(address, args, time.time(), {"types": tags})
-        failed = [name for name, use in self._uses.items() if not use.line.send(message)]
+        failed = []
+        for name in targets:
+            if self._uses[name].line.send(message):
+                self._last_sent[name] = sent_as
+            else:
+                failed.append(name)
         self._problem = " · ".join(f"{name}: {self._uses[name].line.status}" for name in failed)
-        if len(failed) == len(self._uses):
+        if len(failed) == len(targets):
             self._dropped += 1
             return
-        self._last_sent = sent_as
         self._sent += 1
         self.out("shape", tags)
 

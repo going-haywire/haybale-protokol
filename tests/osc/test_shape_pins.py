@@ -146,3 +146,20 @@ def test_configs_explain_themselves(graph: BaseGraph, cls: Any) -> None:
     assert "pin" in ports["arg_shape"].description
     if cls is OscReceiveNode:
         assert "match_" in ports["address"].description
+
+
+def test_dragging_the_slot_among_the_args_puts_it_back_last(graph: BaseGraph) -> None:
+    receive = _node(graph, OscReceiveNode, shape="f i")
+    a, b = (port_id for port_id, _ in _typed(receive))
+    ReorderPortsAction(graph, receive.node_id, [a, _slot(receive), b]).execute()
+    assert _outlet_order(receive)[-1] == _slot(receive)
+
+
+def test_receive_outlets_keep_their_order_with_a_shape(graph: BaseGraph) -> None:
+    receive = _node(graph, OscReceiveNode)
+    receive.node.ports["address"].set_value("/a/*")
+    receive.node.ports["arg_shape"].set_value("f i")
+    order = _outlet_order(receive)
+    assert order[:4] == ["received", "address_out", "from_gate", "args"]
+    assert order[4:7] == ["arg_1", "arg_2", "match_1"]
+    assert order[7:] == ["timetag", "status", _slot(receive)]

@@ -18,3 +18,8 @@ def gate_names(text: str | None) -> list[str]:
 def join_gate_names(names: Iterable[str]) -> str:
     """``names`` as one setting value, ``"a, b"``."""
     return ", ".join(gate_names(",".join(names)))
+
+
+def named_status(gate: str, status: str) -> str:
+    """``status`` prefixed with the gate it is about, unless it already names it."""
+    return status if f"'{gate}'" in status or f" {gate}" in status else f"{gate}: {status}"

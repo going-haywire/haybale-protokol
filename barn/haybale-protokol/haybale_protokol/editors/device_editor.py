@@ -11,7 +11,7 @@ from typing import Any
 
 from haywire.core.access import AccessTier
 from haywire.core.session.context import SessionContext
-from haywire.core.session.handlers import redraw_on
+from haywire.core.session.handlers import react_on
 from haywire.ui import elements as hui
 from haywire.ui.editor.base import BaseEditor
 from haywire.ui.editor.decorator import editor
@@ -20,7 +20,7 @@ from nicegui import ui
 
 from haybale_protokol.devices import Device
 from haybale_protokol.drivers import list_devices
-from haybale_protokol.editors.gates_editor import gate_status
+from haybale_protokol.gate_status import gate_status
 from haybale_protokol.editor_layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
 from haybale_protokol.icons import ProtokolIcon
@@ -57,9 +57,11 @@ class DeviceEditor(BaseEditor):
         self._dialog_host: ui.element | None = None
         self._dialog: ui.dialog | None = None
 
-    @redraw_on(ProtokolChanged, ProtokolSelection.gate, ProtokolSelection.line, ProtokolSelection.device)
+    @react_on(ProtokolChanged, ProtokolSelection.gate, ProtokolSelection.line, ProtokolSelection.device)
     def _on_change(self, context: SessionContext, signal: Any) -> None:
-        """Redraw: the selection, the Device list or a Line changed."""
+        """Refresh the body: the selection, the Device list or a Line changed (an open dialog stays)."""
+        self._context = context
+        self._draw_body()
 
     def draw(self, context: SessionContext, container: ui.element) -> None:
         self._context = context

@@ -114,3 +114,14 @@ async def test_admin_edits_and_deletes(
     user.find(marker="device-delete-mixer").click()
     user.find(marker="device-delete-confirm").click()
     assert protokol.devices() == {}
+
+
+async def test_change_signal_keeps_an_open_dialog(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    editor = await open_editor(user, DeviceEditor, make_context(protokol, selection, admin=True))
+    user.find(marker="device-add").click()
+    dialog = one(user, "device-dialog")
+    editor._on_change(editor._context, None)
+    assert not dialog.is_deleted
+    assert dialog.value
