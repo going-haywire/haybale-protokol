@@ -17,6 +17,14 @@ A peer that disappears without closing (power cut, lost Wi-Fi) is noticed by TCP
 after about 11 s; a client then reconnects. A peer that stops reading is disconnected once
 it holds up a send for 0.2 s, rather than slowing the graph down.
 
+## Gates on a node
+
+A node's **Gate** setting takes one or more gates. Pick them as chips from the list, which
+offers this project's OSC gates that fit the node (input or two-way for Receive, output or
+two-way for Send), or type a name and press Enter. OSC Receive listens on every listed gate;
+its **From gate** outlet says where a message came in. OSC Send sends each message to every
+listed gate. A listed gate that cannot be used is reported in `status`; the others still work.
+
 ## OSC Receive
 
 Runs its flow for each message on its input gate whose address matches **Address**, an OSC

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from functools import partial
 from typing import Any
 
 from haywire.core.execution.execution_context import ExecutionContext
@@ -14,6 +15,8 @@ from haywire.core.types import PortOrigin
 
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
+from haybale_protokol.gate_names import gate_names
+from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.pattern import AddressPattern, compile_pattern
@@ -22,10 +25,13 @@ from haybale_protokol_osc.shape import ShapeError, Token, decode
 logger = logging.getLogger(__name__)
 
 GATE_HELP = (
-    "The name of an input (or two-way) gate in the project's Gate file, .haywire/protokol.toml; "
-    "make gates in the Gates editor. The node opens the gate's Line when the graph starts and gives "
-    "it back when it stops. If the gate is missing, belongs to another protocol or its port is busy, "
-    "the status outlet says why and nothing fires. A change applies on the next start."
+    "One or more input (or two-way) gates from the project's Gate file, .haywire/protokol.toml; "
+    "pick them from the list, which offers this project's OSC gates that can receive, or type a "
+    "name and press Enter. Make gates in the Gates editor. The node opens each gate's Line when "
+    "the graph starts and gives it back when it stops; messages from every gate run the same flow, "
+    "and the From gate outlet says which one a message came in on. A gate that is missing, of "
+    "another protocol or whose port is busy is reported in status; the others still work. A "
+    "change applies on the next start."
 )
 ADDRESS_HELP = (
     "The OSC address pattern to listen to; empty takes every message on the gate. Wildcards: "
@@ -91,7 +97,15 @@ class OscReceiveNode(ArgPins, BaseNode):
         from haywire.barn.builtin.widgets import TextWidget
 
         commit = TextWidget.config(properties={"commit": True})
-        self.add(STRING.as_config("gate", default="", label="Gate", description=GATE_HELP, widget=commit))
+        self.add(
+            STRING.as_config(
+                "gate",
+                default="",
+                label="Gate",
+                description=GATE_HELP,
+                widget=GateSelectWidget.config(properties={"protocol": "osc", "direction": "in"}),
+            )
+        )
         self.add(
             STRING.as_config(
                 "address",
@@ -114,11 +128,14 @@ class OscReceiveNode(ArgPins, BaseNode):
         )
         self.add(EXEC.as_outlet("received", label="Received"))
         self.add(STRING.as_outlet("address_out", label="Address"))
+        self.add(
+            STRING.as_outlet("from_gate", label="From gate", description="The gate the message came in on")
+        )
         self._add_rebuilt_ports(compile_pattern(""), [], {})
 
     def post_init(self) -> None:
         self._lock = threading.Lock()
-        self._binding: ReceiveBinding | None = None
+        self._bindings: list[ReceiveBinding] = []
         self._skipped = 0
         self._skip_shown = -SKIP_STATUS_INTERVAL_S
         self._pattern = compile_pattern("")
@@ -231,26 +248,31 @@ class OscReceiveNode(ArgPins, BaseNode):
         def fire(payload: dict[str, Any]) -> None:
             context.emit_callback(event_name=node_id, payload=payload)
 
-        self._binding = ReceiveBinding(
-            get_protokol_state(),
-            str(self.value("gate") or ""),
-            self._accept,
-            fire,
-            start_value=start_value,
-            block=queue_mode.name == "BLOCK",
-        )
-        self.post_value("status", self._binding.status)
+        state = get_protokol_state()
+        self._bindings = [
+            ReceiveBinding(
+                state,
+                name,
+                partial(self._accept, gate=name),
+                fire,
+                start_value=start_value,
+                block=queue_mode.name == "BLOCK",
+            )
+            for name in gate_names(str(self.value("gate") or ""))
+        ]
+        self.post_value("status", self._status([]))
 
     def on_shutdown(self, context: ExecutionContext) -> None:
-        if self._binding is not None:
-            self._binding.close()
-            self._binding = None
+        for binding in self._bindings:
+            binding.close()
+        self._bindings = []
 
     def worker(self, context: ExecutionContext) -> str | None:
         payload = context.trigger.payload if context.trigger else None
         if not isinstance(payload, dict):
             return None
         self.out("address_out", payload["address"])
+        self.out("from_gate", payload["gate"])
         self.out("args", list(payload["args"]))
         values = payload["values"]
         mismatch = self._pins_mismatch() if values else None
@@ -264,7 +286,7 @@ class OscReceiveNode(ArgPins, BaseNode):
         self.out("status", self._status(problems))
         return "received"
 
-    def _accept(self, message: Message) -> dict[str, Any] | None:
+    def _accept(self, message: Message, gate: str) -> dict[str, Any] | None:
         with self._lock:
             pattern, tokens = self._pattern, self._decode_tokens
         captures = pattern.match(message.address)
@@ -276,6 +298,7 @@ class OscReceiveNode(ArgPins, BaseNode):
             return None
         return {
             "address": message.address,
+            "gate": gate,
             "args": list(message.args),
             "values": values,
             "captures": captures,
@@ -307,8 +330,7 @@ class OscReceiveNode(ArgPins, BaseNode):
         return problems
 
     def _status(self, problems: list[str]) -> str:
-        base = self._binding.status if self._binding is not None else ""
-        parts = [base] if base else []
+        parts = [binding.status for binding in self._bindings] or ["no gate set"]
         if self._skipped:
             parts.append(f"{self._skipped} skipped")
         parts.extend(problems)

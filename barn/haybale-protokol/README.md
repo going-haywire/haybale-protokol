@@ -81,6 +81,9 @@ Receive and Send nodes report problems on their `status` outlet; nothing crashes
 
 Control protocols for graphs: gates, shared lines and the base for OSC, MIDI and gamepad
 
+## Widgets
+- **GateSelectWidget** — Pick gates as chips from the gates that fit the node; typed names are kept
+
 ## Settings
 - **Protokol** — Lines shared by gates and the Monitor
 

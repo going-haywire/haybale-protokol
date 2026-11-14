@@ -12,18 +12,22 @@ from haywire.core.settings import NodeSettings, Promotable, bag, setting
 from haywire.core.types import PortOrigin
 
 from haybale_protokol.drivers import Message
+from haybale_protokol.gate_names import gate_names
 from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.states.protokol_state import LineUse
+from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.shape import ShapeError, encode
 
 
 GATE_HELP = (
-    "The name of an output (or two-way) gate in the project's Gate file, .haywire/protokol.toml; "
-    "make gates in the Gates editor. The node opens the gate's Line when the graph starts and gives "
-    "it back when it stops. While the gate is missing, belongs to another protocol or cannot reach "
-    "its peer, sends are dropped and counted in the status outlet, never queued. A change applies "
-    "on the next start."
+    "One or more output (or two-way) gates from the project's Gate file, .haywire/protokol.toml; "
+    "pick them from the list, which offers this project's OSC gates that can send, or type a name "
+    "and press Enter. Make gates in the Gates editor. Each send goes to every listed gate. The node "
+    "opens each gate's Line when the graph starts and gives it back when it stops. A gate that is "
+    "missing, of another protocol or cannot reach its peer is reported in status and the others "
+    "still get the message; a message no gate could take counts as dropped, never queued. A change "
+    "applies on the next start."
 )
 SHAPE_HELP = (
     "The Arg shape: one token per argument inlet, in inlet order. i: int; f: float; s: text; "
@@ -82,7 +86,15 @@ class OscSendNode(ArgPins, BaseNode):
         from haywire.barn.builtin.widgets import TextWidget
 
         commit = TextWidget.config(properties={"commit": True})
-        self.add(STRING.as_config("gate", default="", label="Gate", description=GATE_HELP, widget=commit))
+        self.add(
+            STRING.as_config(
+                "gate",
+                default="",
+                label="Gate",
+                description=GATE_HELP,
+                widget=GateSelectWidget.config(properties={"protocol": "osc", "direction": "out"}),
+            )
+        )
         self.add(
             STRING.as_config(
                 "arg_shape",
@@ -101,7 +113,9 @@ class OscSendNode(ArgPins, BaseNode):
         self.add(STRING.as_outlet("status", label="Status", default=""))
 
     def post_init(self) -> None:
-        self._use: LineUse | None = None
+        self._uses: dict[str, LineUse] = {}
+        self._gate_problems: dict[str, str] = {}
+        """Why each listed gate that is not in use could not be used."""
         self._sent = 0
         self._dropped = 0
         self._unchanged = 0
@@ -131,51 +145,67 @@ class OscSendNode(ArgPins, BaseNode):
         self._sent = self._dropped = self._unchanged = 0
         self._last_sent = None
         self._problem = ""
-        result = get_protokol_state().use(str(self.value("gate") or ""), "out")
-        self._use = result if isinstance(result, LineUse) else None
-        self._problem = "" if self._use is not None else str(result)
+        self._uses = {}
+        self._gate_problems = {}
+        state = get_protokol_state()
+        names = gate_names(str(self.value("gate") or ""))
+        for name in names:
+            result = state.use(name, "out")
+            if isinstance(result, LineUse):
+                self._uses[name] = result
+            else:
+                self._gate_problems[name] = str(result)
+        if not names:
+            self._problem = "no gate set"
         self.post_value("status", self._status())
 
     def on_shutdown(self, context: ExecutionContext) -> None:
-        if self._use is not None:
-            self._use.release()
-            self._use = None
+        for use in self._uses.values():
+            use.release()
+        self._uses = {}
 
     def worker(self, context: ExecutionContext) -> str | None:
-        mismatch = self._pins_mismatch() if self._use is not None else None
-        if mismatch is not None:
-            self._dropped += 1
-            self._problem = mismatch
-        elif self._use is not None:
-            try:
-                tokens = self._tokens()
-                tags, args = encode(tokens, [self.value(port.id) for port in self._arg_ports()])
-            except ShapeError as exc:
-                self._dropped += 1
-                self._problem = str(exc)
-            else:
-                address = str(self.value("address") or "/")
-                sent_as = (address, tags, args)
-                if self.sending.only_changes and sent_as == self._last_sent:
-                    self._unchanged += 1
-                elif self._use.line.send(Message(address, args, time.time(), {"types": tags})):
-                    self._last_sent = sent_as
-                    self._sent += 1
-                    self._problem = ""
-                    self.out("shape", tags)
-                else:
-                    self._dropped += 1
-                    self._problem = self._use.line.status
+        if self._uses:
+            self._send_to_gates()
         self.out("status", self._status())
         return "next"
 
+    def _send_to_gates(self) -> None:
+        mismatch = self._pins_mismatch()
+        if mismatch is not None:
+            self._dropped += 1
+            self._problem = mismatch
+            return
+        try:
+            tokens = self._tokens()
+            tags, args = encode(tokens, [self.value(port.id) for port in self._arg_ports()])
+        except ShapeError as exc:
+            self._dropped += 1
+            self._problem = str(exc)
+            return
+        address = str(self.value("address") or "/")
+        sent_as = (address, tags, args)
+        if self.sending.only_changes and sent_as == self._last_sent:
+            self._unchanged += 1
+            return
+        message = Message(address, args, time.time(), {"types": tags})
+        failed = [name for name, use in self._uses.items() if not use.line.send(message)]
+        self._problem = " · ".join(f"{name}: {self._uses[name].line.status}" for name in failed)
+        if len(failed) == len(self._uses):
+            self._dropped += 1
+            return
+        self._last_sent = sent_as
+        self._sent += 1
+        self.out("shape", tags)
+
     def _status(self) -> str:
-        if self._use is None:
-            return self._problem
+        notes = [f"{text}" for text in self._gate_problems.values()]
+        if self._problem:
+            notes.append(self._problem)
+        if not self._uses:
+            return " · ".join(notes)
         parts = [f"sent {self._sent}"]
         if self._unchanged:
             parts.append(f"unchanged {self._unchanged}")
         parts.append(f"dropped {self._dropped}")
-        if self._problem:
-            parts.append(self._problem)
-        return " · ".join(parts)
+        return " · ".join(parts + notes)
