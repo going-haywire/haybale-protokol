@@ -354,3 +354,55 @@ def test_copied_rows_keep_their_columns_apart() -> None:
     html = _messages_html([row])
     assert "16:00:28.479</span> <span" in html
     assert "Mix</span> <span" in html
+
+
+async def test_order_toggle_shows_oldest_first_like_a_log(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    for i in range(3):
+        driver.connections[0].push("/a", i)
+    editor._refresh()
+    assert [row["description"][-4:] for row in _rows(editor)] == ["(2,)", "(1,)", "(0,)"]
+    user.find(marker="monitor-order").click()
+    editor._refresh()
+    assert [row["description"][-4:] for row in _rows(editor)] == ["(0,)", "(1,)", "(2,)"]
+    user.find(marker="monitor-order").click()
+    editor._refresh()
+    assert _rows(editor)[0]["description"].endswith("(2,)")
+
+
+async def test_log_order_keeps_the_newest_rows(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-order").click()
+    for i in range(MONITOR_ROWS + 50):
+        driver.connections[0].push("/a", i)
+    editor._refresh()
+    rows = _rows(editor)
+    assert len(rows) == MONITOR_ROWS
+    assert rows[-1]["description"].endswith(f"({MONITOR_ROWS + 49},)")
+
+
+async def test_log_order_follows_the_bottom_unless_scrolled_up(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-order").click()
+    scrolls: list[float | None] = []
+    editor._messages_area.scroll_to = lambda **kw: scrolls.append(kw.get("percent"))
+    driver.connections[0].push("/a", 1)
+    editor._refresh()
+    assert scrolls == [1.0]
+    editor._on_messages_scroll(type("E", (), {"vertical_percentage": 0.4})())
+    driver.connections[0].push("/a", 2)
+    editor._refresh()
+    assert scrolls == [1.0], "scrolled up to read: stay put"
+    editor._on_messages_scroll(type("E", (), {"vertical_percentage": 1.0})())
+    driver.connections[0].push("/a", 3)
+    editor._refresh()
+    assert scrolls == [1.0, 1.0]

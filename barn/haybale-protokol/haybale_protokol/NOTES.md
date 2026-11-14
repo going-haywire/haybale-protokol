@@ -54,8 +54,9 @@ their own threads; a slow flow never holds a Line up.
 | **Device** | right icon bar | Follows the selection: a device, a gate (its options, Line and last values) or a Line. With nothing selected, the machine's Device list. | Editing the Device list: admin access |
 
 The Monitor never slows a Line: each watched source keeps the last 2000 messages (older ones
-drop and are counted), and the table redraws at most five times a second, showing the newest
-300. Export writes everything the filter keeps.
+drop and are counted), and the output redraws at most five times a second, showing the newest
+300 messages: newest first, or oldest first like a log (the toolbar toggles it; a log follows the
+newest message unless you scroll up to read). Export writes everything the filter keeps.
 
 A gate edited while graphs use it applies when those graphs next start.
 

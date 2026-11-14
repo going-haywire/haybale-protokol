@@ -70,6 +70,12 @@ class MonitorEditor(BaseEditor):
         self._gates: dict[str, Gate] = {}
         self._split: float = SPLIT_START
         """Where the user left the divider, kept across redraws."""
+        self._newest_first = True
+        """Order of the output: newest first, or oldest first like a log."""
+        self._follow = True
+        """In log order: keep the newest row in view; off while the user has scrolled up to read."""
+        self._messages_area: ui.scroll_area | None = None
+        self._order_button: ui.button | None = None
         self._send_text: dict[str, str] = {}
         """What was typed in each line's test-send field, kept across refreshes."""
         self._hidden: set[str] = set()
@@ -117,6 +123,11 @@ class MonitorEditor(BaseEditor):
                     hui.input_field(
                         placeholder="Filter", value=self._filter, clearable=True, on_change=self._set_filter
                     ).classes("flex-1").mark("monitor-filter")
+                    self._order_button = hui.icon_action(
+                        icons.newest_first if self._newest_first else icons.oldest_first,
+                        tooltip="Newest first or oldest first (like a log)",
+                        on_click=self._toggle_order,
+                    ).mark("monitor-order")
                     hui.icon_action(
                         hui.icon.resume if self._paused else hui.icon.pause,
                         tooltip="Resume" if self._paused else "Pause",
@@ -152,7 +163,9 @@ class MonitorEditor(BaseEditor):
                                 self._sources_box = ui.column().classes("w-full gap-0 p-1")
                     with splitter.after:
                         with ui.column().classes("w-full h-full min-w-0 gap-0"):
-                            with scroll_area():
+                            with scroll_area() as messages_area:
+                                messages_area.on_scroll(self._on_messages_scroll)
+                                self._messages_area = messages_area
                                 self._messages = (
                                     ui.html("", sanitize=False)
                                     .classes("w-full p-1")
@@ -348,6 +361,7 @@ class MonitorEditor(BaseEditor):
         """Rebuild the message list from the taps, when something changed since the last time."""
         shown = (
             self._filter,
+            self._newest_first,
             frozenset(self._hidden),
             *((key, tap.received, tap.dropped) for key, tap in self._taps.items()),
         )
@@ -356,9 +370,14 @@ class MonitorEditor(BaseEditor):
         self._shown = shown
         rows = self._collect()
         self._export_rows = rows
-        self._view = [_view_row(row) for row in rows[:MONITOR_ROWS]]
+        window = rows[:MONITOR_ROWS]
+        if not self._newest_first:
+            window.reverse()
+        self._view = [_view_row(row) for row in window]
         if self._messages is not None and not self._messages.is_deleted:
             self._messages.set_content(_messages_html(self._view))
+            if not self._newest_first and self._follow and self._messages_area is not None:
+                self._messages_area.scroll_to(percent=1.0)
         self._update_counts()
 
     def _collect(self, only: str | None = None) -> list[MonitorRow]:
@@ -391,6 +410,19 @@ class MonitorEditor(BaseEditor):
                 label.set_text(f"received {tap.received} · dropped {tap.dropped}")
 
     # -- actions ---------------------------------------------------------------------------
+
+    def _toggle_order(self) -> None:
+        """Switch between newest first and oldest first; log order starts following the bottom."""
+        self._newest_first = not self._newest_first
+        self._follow = True
+        icon = icons.newest_first if self._newest_first else icons.oldest_first
+        if self._order_button is not None and not self._order_button.is_deleted:
+            self._order_button.props(f"icon={icon}")
+        self._refresh()
+
+    def _on_messages_scroll(self, event: Any) -> None:
+        """In log order, follow the newest row only while the user is at the bottom."""
+        self._follow = float(event.vertical_percentage) >= 0.98
 
     def _set_split(self, event: Any) -> None:
         self._split = float(event.value)
