@@ -170,6 +170,8 @@ class ProtokolState(AppState):
         driver, device, key = resolved
         with self._lock:
             line = self._lines.get(key)
+            if line is not None and not line.is_closed and getattr(line.connection, "gone", False):
+                line.close()  # its port went away (a Device unplugged): a new Line opens it afresh
             if line is not None and line.is_closed:
                 self._lines.pop(key, None)
                 line = None

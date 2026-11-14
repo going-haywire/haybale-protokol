@@ -29,8 +29,8 @@ needs_virtual = pytest.mark.skipif(not VIRTUAL, reason="MIDI virtual ports are n
 class Source:
     """A virtual port that sends: other programs see it as a MIDI input."""
 
-    def __init__(self) -> None:
-        self.name = f"protokol-src-{uuid.uuid4().hex[:6]}"
+    def __init__(self, name: str | None = None) -> None:
+        self.name = name or f"protokol-src-{uuid.uuid4().hex[:6]}"
         self._out = rtmidi.MidiOut()
         self._out.open_virtual_port(self.name)
         time.sleep(0.1)
@@ -55,6 +55,8 @@ class Sink:
         time.sleep(0.1)
 
     def close(self) -> None:
+        self._in.cancel_callback()
+        time.sleep(0.02)
         self._in.close_port()
 
 

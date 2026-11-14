@@ -1,5 +1,6 @@
 """The MIDI driver through rtmidi virtual ports."""
 
+import time
 from pathlib import Path
 
 import pytest
@@ -7,8 +8,9 @@ import pytest
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.drivers import LineKey, Message
 from haybale_protokol.gates import Gate, gate_file_path, save_gates
-from haybale_protokol.states.protokol_state import LineUse, ProtokolState
-from haybale_protokol_midi.driver import MidiDriver
+from haybale_protokol.line_use import LineUse
+from haybale_protokol.states.protokol_state import ProtokolState
+from haybale_protokol_midi.driver import MidiDriver, MidiInConnection, MidiOutConnection
 from tests.midi.conftest import Sink, Source, needs_virtual, wait_for
 
 pytestmark = needs_virtual
@@ -86,3 +88,73 @@ def test_list_devices_sees_virtual_ports(source: Source, sink: Sink) -> None:
     devices = dict(MidiDriver().list_devices())
     assert devices[source.name] == "input"
     assert devices[sink.name] == "output"
+
+
+@pytest.mark.timeout(60)
+def test_open_close_under_a_stream_never_hangs(source: Source) -> None:
+    """Closing an input while messages flow must not deadlock (rtmidi callback vs the GIL)."""
+    import threading
+
+    stop = threading.Event()
+
+    def stream() -> None:
+        value = 0
+        while not stop.is_set():
+            source.send(0xF8)
+            source.send(0xB0, 7, value)
+            value = (value + 1) % 128
+            time.sleep(0.0005)
+
+    sender = threading.Thread(target=stream, daemon=True)
+    sender.start()
+    try:
+        for _ in range(150):
+            connection = MidiInConnection(source.name)
+            connection.start(lambda message: None)
+            time.sleep(0.003)
+            connection.close()
+    finally:
+        stop.set()
+        sender.join()
+
+
+def test_an_unplugged_input_says_so_and_a_new_use_reopens(state: ProtokolState, tmp_path: Path) -> None:
+    first = Source()
+    name = first.name
+    _bind(tmp_path, (Gate("keys", "midi", "in", device="keys"), Device("keys", "midi", name)))
+    state.grace_s = lambda: 5.0
+    use = state.use("keys", "in")
+    assert isinstance(use, LineUse), use
+    first.close()
+    assert wait_for(lambda: "port gone" in use.line.status, timeout=4.0)
+    use.release()
+    second = Source(name)
+    try:
+        got: list[Message] = []
+        again = state.use("keys", "in", got.append)
+        assert isinstance(again, LineUse), again
+        assert again.line is not use.line, "a Line whose port went away is replaced"
+        second.send(0xB0, 7, 1)
+        assert wait_for(lambda: len(got) == 1)
+        again.release()
+    finally:
+        second.close()
+
+
+def test_an_unplugged_output_drops_and_says_so(sink: Sink) -> None:
+    connection = MidiOutConnection(sink.name)
+    connection.start(lambda message: None)
+    sink.close()
+    message = MidiDriver().parse_test_message("cc 1 7 1")
+    assert wait_for(lambda: not connection.send(message) and "port gone" in connection.status, timeout=4.0)
+    connection.close()
+
+
+def test_listing_devices_without_a_midi_backend_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    import haybale_protokol_midi.driver as driver_module
+
+    def broken() -> None:
+        raise SystemError("no MIDI backend")
+
+    monkeypatch.setattr(driver_module.rtmidi, "MidiIn", broken)
+    assert MidiDriver().list_devices() == []

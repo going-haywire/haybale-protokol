@@ -20,7 +20,8 @@ The Device list on this machine (`~/.haywire/protokol-devices.toml`, edited in t
 editor) maps the name to a MIDI port, so a colleague's project works on their machine once they
 map `keys` to their own keyboard. MIDI inputs and outputs are separate ports with their own
 names. A gate whose port is not connected reports `cannot open: no MIDI port '…'` and the graph
-runs on.
+runs on. A port unplugged while the graph runs reports `port gone`; sends to it are dropped.
+Reconnect the device and restart the graph to open it again.
 
 ## Kinds
 
@@ -39,8 +40,9 @@ controller, 0–127, or −1 for any). Their pins follow them:
 | raw | bytes | every message as it is |
 
 A channel, note or controller pin appears when its filter is "any". On MIDI Receive, values (cc,
-pitch bend, aftertouch) fire their last value when the graph starts and keep only the newest
-message when the flow runs behind; events (notes, programs, transport) queue every message.
+pitch bend, aftertouch) fire their last value when the graph starts. When the flow runs behind,
+a node listening to one controller on one channel and one gate keeps only the newest value;
+anything broader, and every event (notes, programs, transport), queues each message.
 MIDI Send sends on each control tick, or with **Only send changes** only when the message
 differs from the last one a gate took. An out-of-range value is dropped and named in status.
 

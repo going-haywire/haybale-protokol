@@ -22,7 +22,7 @@ Triggered for each MIDI message on its gates that passes its kind, channel and n
 
 | name | bag | default | description |
 |---|---|---|---|
-| `queue_mode` | dispatch | `'Auto (by message kind)'` | Block runs the flow for every message; a slow flow then falls behind, never the Line. Drop keeps only the newest message. Auto uses Drop for values (faders, axes, OSC) and Block for events (notes, buttons). |
+| `queue_mode` | dispatch | `'Auto (by message kind)'` | Block runs the flow for every message; a slow flow then falls behind, never the Line. Drop keeps only the newest message. Auto uses Drop for values from one source (one fader, axis or exact OSC address on one gate) and Block for everything else. |
 | `max_queue_size` | dispatch | `100` | How many messages Block holds while the flow runs behind. Drop always holds one. |
 | `start_value` | dispatch | `'Auto (by message kind)'` | Fire once with the last message the Line saw when the graph starts. Auto: on for values, off for events. |
 

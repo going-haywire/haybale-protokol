@@ -28,8 +28,8 @@ class ReceiveDispatchSettings(NodeSettings):
         category="Dispatch",
         description=(
             "Block runs the flow for every message; a slow flow then falls behind, never the Line. "
-            "Drop keeps only the newest message. Auto uses Drop for values (faders, axes, OSC) and "
-            "Block for events (notes, buttons)."
+            "Drop keeps only the newest message. Auto uses Drop for values from one source (one "
+            "fader, axis or exact OSC address on one gate) and Block for everything else."
         ),
         widget_config={"options": [AUTO, BLOCK, DROP]},
         promotable=Promotable.CONFIG,
@@ -56,11 +56,17 @@ class ReceiveDispatchSettings(NodeSettings):
     )
 
 
-def resolve_dispatch(dispatch: ReceiveDispatchSettings, *, stream: bool) -> tuple[QueueMode, int, bool]:
-    """Return ``(queue mode, queue size, start value)`` for a node receiving a stream or event kind."""
+def resolve_dispatch(
+    dispatch: ReceiveDispatchSettings, *, stream: bool, single_source: bool = True
+) -> tuple[QueueMode, int, bool]:
+    """Return ``(queue mode, queue size, start value)`` for a node receiving a stream or event kind.
+
+    Auto keeps only the newest message just for a stream from a ``single_source`` (one fader, one
+    exact address, on one gate): with several sources one slot would lose all but one of them.
+    """
     mode = str(dispatch.queue_mode)
     if mode == AUTO:
-        mode = DROP if stream else BLOCK
+        mode = DROP if stream and single_source else BLOCK
     start = str(dispatch.start_value)
     start_value = stream if start == AUTO else start == ON
     if mode == DROP:

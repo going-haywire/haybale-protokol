@@ -146,3 +146,27 @@ def test_event_source_for_node() -> None:
     assert source.event_name == "node_1"
     assert source.queue_mode is QueueMode.DROP
     assert source.max_queue_size == 1
+
+
+def test_resolve_dispatch_drops_only_for_a_single_source() -> None:
+    settings = ReceiveDispatchSettings()
+    assert resolve_dispatch(settings, stream=True, single_source=True)[0] is QueueMode.DROP
+    assert resolve_dispatch(settings, stream=True, single_source=False)[0] is QueueMode.BLOCK
+
+
+def test_block_overflow_keeps_the_newest(setup: tuple[ProtokolState, FakeDriver]) -> None:
+    state, driver = setup
+    release = threading.Event()
+    fired: list[dict[str, Any]] = []
+
+    def slow(payload: dict[str, Any]) -> None:
+        release.wait(2.0)
+        fired.append(payload)
+
+    binding = ReceiveBinding(state, "in", _accept_numbers, slow, start_value=False, block=True, capacity=4)
+    for i in range(20):
+        driver.connections[0].push("/n", i)
+    release.set()
+    assert _wait(lambda: fired and fired[-1]["value"] == 19)
+    assert binding.dropped >= 15
+    binding.close()

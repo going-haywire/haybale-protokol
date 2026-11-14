@@ -8,6 +8,7 @@ for each message, which is the Line's thread.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from typing import Any
@@ -20,6 +21,13 @@ from haybale_protokol.gates import Gate
 import haybale_protokol_midi.midi_messages as midi_messages
 
 logger = logging.getLogger(__name__)
+
+#: Seconds an input's reading thread waits when no message is queued.
+POLL_S = 0.001
+#: Messages rtmidi holds for an input while its thread is busy.
+QUEUE_SIZE = 4096
+#: Seconds between checks that a port still exists (an unplugged Device).
+PORT_CHECK_S = 0.5
 
 
 class MidiDriver:
@@ -57,53 +65,79 @@ class MidiDriver:
 
     def list_devices(self) -> list[tuple[str, str]]:
         """Every MIDI port on this machine, as ``(port name, "input" | "output" | "input and output")``."""
-        inputs, outputs = set(_port_names(rtmidi.MidiIn)), set(_port_names(rtmidi.MidiOut))
+        try:
+            inputs, outputs = set(_port_names(rtmidi.MidiIn)), set(_port_names(rtmidi.MidiOut))
+        except Exception:  # no MIDI backend on this machine (e.g. Linux without ALSA's sequencer)
+            logger.debug("listing MIDI ports failed", exc_info=True)
+            return []
         names = sorted(inputs | outputs)
         return [(name, _role(name in inputs, name in outputs)) for name in names]
 
 
 class MidiInConnection:
-    """Listens on one MIDI input port; rtmidi's thread delivers each message."""
+    """Listens on one MIDI input port; its own daemon thread reads and delivers each message.
+
+    It polls rtmidi rather than taking rtmidi's callback: closing a port while a callback runs on
+    CoreMIDI's thread deadlocks the process (the close keeps the GIL the callback waits for). The
+    port is closed by the reading thread itself, after it stopped reading.
+    """
 
     def __init__(self, port: str) -> None:
         self.port = port
         self.bad = 0
-        self._midi: Any = None
+        self.gone = False
+        """True once the port disappeared (the Device was unplugged)."""
+        self.thread: threading.Thread | None = None
+        self._closing = threading.Event()
 
     @property
     def status(self) -> str:
+        if self.gone:
+            return f"port gone: MIDI '{self.port}' (reconnect it, then restart the graph)"
         text = f"listening on MIDI '{self.port}'"
         return f"{text} · {self.bad} bad" if self.bad else text
 
     def start(self, deliver: Callable[[Message], None]) -> None:
-        midi = rtmidi.MidiIn()
+        midi = rtmidi.MidiIn(queue_size_limit=QUEUE_SIZE)
         index = _index_of(midi, self.port)
         midi.ignore_types(sysex=False, timing=False, active_sense=True)
-
-        def on_message(event: Any, _data: Any = None) -> None:
-            try:
-                message = midi_messages.decode(event[0], time.time())
-            except Exception:
-                self.bad += 1
-                return
-            if message is not None:
-                deliver(message)
-
-        midi.set_callback(on_message)
         try:
             midi.open_port(index)
         except Exception as exc:  # rtmidi's own error types
             midi.delete()
             raise OSError(f"cannot open MIDI port '{self.port}': {exc}") from exc
-        self._midi = midi
+        self.thread = threading.Thread(
+            target=self._read, args=(midi, deliver), name=f"protokol-midi-in-{self.port}", daemon=True
+        )
+        self.thread.start()
 
     def send(self, message: Message) -> bool:
         return False
 
     def close(self) -> None:
-        midi, self._midi = self._midi, None
-        if midi is not None:
-            midi.cancel_callback()
+        self._closing.set()
+        if self.thread is not None and self.thread is not threading.current_thread():
+            self.thread.join(timeout=2.0)
+
+    def _read(self, midi: Any, deliver: Callable[[Message], None]) -> None:
+        checked = time.monotonic()
+        try:
+            while not self._closing.is_set():
+                event = midi.get_message()
+                if time.monotonic() - checked > PORT_CHECK_S:
+                    checked = time.monotonic()
+                    self.gone = self.port not in midi.get_ports()
+                if event is None:
+                    self._closing.wait(POLL_S)
+                    continue
+                try:
+                    message = midi_messages.decode(event[0], time.time())
+                except Exception:
+                    self.bad += 1
+                    continue
+                if message is not None:
+                    deliver(message)
+        finally:
             midi.close_port()
             midi.delete()
 
@@ -115,10 +149,17 @@ class MidiOutConnection:
         self.port = port
         self.sent = 0
         self.dropped = 0
+        self.gone = False
+        """True once the port disappeared (the Device was unplugged); sends are then dropped."""
+        self._checked = 0.0
         self._midi: Any = None
 
     @property
     def status(self) -> str:
+        self._check_port()
+        if self.gone:
+            reconnect = "(reconnect it, then restart the graph)"
+            return f"port gone: MIDI '{self.port}' · dropped {self.dropped} {reconnect}"
         return f"sending to MIDI '{self.port}' · sent {self.sent} · dropped {self.dropped}"
 
     def start(self, deliver: Callable[[Message], None]) -> None:
@@ -133,7 +174,8 @@ class MidiOutConnection:
 
     def send(self, message: Message) -> bool:
         data = message.extra.get("bytes")
-        if self._midi is None or not data:
+        self._check_port()
+        if self._midi is None or not data or self.gone:
             self.dropped += 1
             return False
         try:
@@ -150,6 +192,13 @@ class MidiOutConnection:
         if midi is not None:
             midi.close_port()
             midi.delete()
+
+    def _check_port(self) -> None:
+        """Note an unplugged port, at most every ``PORT_CHECK_S`` (listing ports costs a system call)."""
+        if self._midi is None or time.monotonic() - self._checked < PORT_CHECK_S:
+            return
+        self._checked = time.monotonic()
+        self.gone = self.port not in self._midi.get_ports()
 
 
 def _index_of(midi: Any, port: str) -> int:

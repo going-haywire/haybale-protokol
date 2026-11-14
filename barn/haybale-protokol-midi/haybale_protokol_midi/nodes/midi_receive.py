@@ -173,7 +173,9 @@ class MidiReceiveNode(BaseNode):
     # -- running -----------------------------------------------------------------
 
     def on_startup(self, context: ExecutionContext) -> None:
-        queue_mode, _size, start_value = resolve_dispatch(self.dispatch, stream=self._is_stream())
+        queue_mode, _size, start_value = resolve_dispatch(
+            self.dispatch, stream=self._is_stream(), single_source=self._single_source()
+        )
         node_id = self.node_id
 
         def fire(payload: dict[str, Any]) -> None:
@@ -236,9 +238,20 @@ class MidiReceiveNode(BaseNode):
             number_filter(self.value("filter_number")),
         )
 
+    def _single_source(self) -> bool:
+        """One channel, one number (where the kind has them) and one gate."""
+        kind, channel, number = self._filter()
+        if kind in CHANNEL_KINDS and channel == 0:
+            return False
+        if kind in NUMBER_PIN and number < 0:
+            return False
+        return len(gate_names(str(self.value("gate") or ""))) <= 1
+
     def _is_stream(self) -> bool:
         return self._filter()[0] in STREAM_KINDS
 
     def _subscribe(self) -> None:
-        queue_mode, size, _start = resolve_dispatch(self.dispatch, stream=self._is_stream())
+        queue_mode, size, _start = resolve_dispatch(
+            self.dispatch, stream=self._is_stream(), single_source=self._single_source()
+        )
         self.event_subscription = event_source_for(self.node_id, queue_mode, size)

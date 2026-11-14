@@ -67,7 +67,7 @@ def test_channel_and_number_outlets_appear_for_any(graph: BaseGraph) -> None:
 def test_start_value_follows_the_kind(graph: BaseGraph) -> None:
     from haywire.core.execution import QueueMode
 
-    wrapper = _receive(graph, kind="cc")
+    wrapper = _receive(graph, kind="cc", number=7)
     wrapper.node.on_assembly()
     assert wrapper.node.event_subscription.queue_mode is QueueMode.DROP
     wrapper.node.ports["kind"].set_value("note")
@@ -139,3 +139,22 @@ def test_save_reload_keeps_ports(graph: BaseGraph) -> None:
     node = loaded.get_node_wrapper(wrapper.node_id)
     assert node.node.value("kind") == "note"
     assert _values(node) == ["channel", "note", "velocity", "on"]
+
+
+def test_auto_drops_only_for_one_controller_on_one_gate(graph: BaseGraph) -> None:
+    from haywire.core.execution import QueueMode
+
+    node = _receive(graph, kind="cc", channel=1, number=7).node
+    node.on_assembly()
+    assert node.event_subscription.queue_mode is QueueMode.DROP
+    for port, value in (("filter_number", -1), ("filter_channel", 0)):
+        node.ports["filter_number"].set_value(7)
+        node.ports["filter_channel"].set_value(1)
+        node.ports[port].set_value(value)
+        node.on_assembly()
+        assert node.event_subscription.queue_mode is QueueMode.BLOCK, port
+    node.ports["filter_number"].set_value(7)
+    node.ports["filter_channel"].set_value(1)
+    node.ports["gate"].set_value("a, b")
+    node.on_assembly()
+    assert node.event_subscription.queue_mode is QueueMode.BLOCK
