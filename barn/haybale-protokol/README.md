@@ -52,7 +52,7 @@ their own threads; a slow flow never holds a Line up.
 | Editor | Slot | What it does | Who may change things |
 |---|---|---|---|
 | **Gates** | left icon bar | The project's gates, with each one's Line and status. Add, edit, delete; "Bind…" for a gate whose device this machine does not know; open the Monitor on a gate. | Edit access |
-| **Monitor** | centre tab | Tick gates or open Lines to watch their traffic, newest first, filtered by text. Pause, clear, export as JSONL or CSV. Test-send to output gates. "New line…" watches a Line no gate uses yet, and "Save as gate…" keeps it. | Watching open Lines: view access. Opening Lines, test-send, saving gates: edit access |
+| **Monitor** | centre tab | Click a line's eye to watch it; the eye then hides or shows its messages in the output without losing them. Each watched line has its own Clear, Export (JSONL or CSV) and Stop watching; the toolbar's act on all shown lines. Filter by text, pause. Test-send to output gates. "New line…" watches a Line no gate uses yet, and "Save as gate…" keeps it. | Watching open Lines: view access. Opening Lines, test-send, saving gates: edit access |
 | **Device** | right icon bar | Follows the selection: a device, a gate (its options, Line and last values) or a Line. With nothing selected, the machine's Device list. | Editing the Device list: admin access |
 
 The Monitor never slows a Line: each watched source keeps the last 2000 messages (older ones

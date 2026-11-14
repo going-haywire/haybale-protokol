@@ -23,7 +23,6 @@ from haybale_protokol.devices import DeviceListError, device_list_path, load_dev
 from haybale_protokol.editors.gate_form import GateForm
 from haybale_protokol.editors.layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
-from haybale_protokol.icons import ProtokolIcon
 from haybale_protokol.icons import icon as icons
 from haybale_protokol.signals import ProtokolChanged
 from haybale_protokol.states.protokol_selection import ProtokolSelection
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @editor(
     label="Gates",
-    icon=ProtokolIcon.gates,
+    icon=hui.icon.network,
     default_slot=SlotName.ACTION,
     requires=AccessTier.VIEW,
     description="The project's gates and their Lines",
@@ -64,7 +63,7 @@ class GatesEditor(BaseEditor):
         container.clear()
         with container:
             with ui.column().classes("w-full h-full gap-0") as root:
-                with hui.slot_header("Gates", icon=ProtokolIcon.gates):
+                with hui.slot_header("Gates", icon=hui.icon.network):
                     if self._can_edit():
                         hui.icon_action(hui.icon.add, tooltip="Add a gate", on_click=self._open_add).mark(
                             "gate-add"

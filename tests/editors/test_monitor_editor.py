@@ -39,7 +39,7 @@ async def test_monitor_draws_a_bounded_window(
     user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
 ) -> None:
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
     for i in range(5000):
         driver.connections[0].push("/a", i)
     editor._refresh()
@@ -53,7 +53,7 @@ async def test_filter_matches_description(
     user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
 ) -> None:
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
     driver.connections[0].push("/alpha", 1)
     driver.connections[0].push("/beta", 2)
     set_value(user, "monitor-filter", "BETA")
@@ -65,7 +65,7 @@ async def test_view_only_cannot_open_closed_lines(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
     editor = await _monitor(user, protokol, selection, edit=False)
-    assert "pointer-events-none" in one(user, "monitor-source-in").classes
+    assert "pointer-events-none" in one(user, "monitor-visibility-in").classes
     await user.should_not_see(marker="monitor-new-line")
     assert editor._taps == {}
 
@@ -77,7 +77,7 @@ async def test_view_only_taps_open_line(
     keeper = protokol.use("in", "in")
     assert isinstance(keeper, LineUse)
     editor = await open_editor(user, MonitorEditor, make_context(protokol, selection, edit=False))
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
     assert "in" in editor._taps
     driver.connections[0].push("/a", 1)
     editor._refresh()
@@ -91,7 +91,7 @@ async def test_test_send_reaches_fake_connection(
     user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
 ) -> None:
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-out").click()
+    user.find(marker="monitor-visibility-out").click()
     set_value(user, "monitor-send-input-out", "/x 1")
     user.find(marker="monitor-send-out").click()
     assert [m.address for m in driver.connections[0].sent] == ["/x"]
@@ -103,7 +103,7 @@ async def test_test_send_error_inline(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
     await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-out").click()
+    user.find(marker="monitor-visibility-out").click()
     set_value(user, "monitor-send-input-out", "no address")
     user.find(marker="monitor-send-out").click()
     assert "needs an address" in str(one(user, "monitor-send-error-out").text)
@@ -139,22 +139,83 @@ async def test_closing_monitor_releases_taps(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
-    user.find(marker="monitor-source-out").click()
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-visibility-out").click()
     assert len(protokol.lines()) == 2
     assert await editor.handle_close_request()
     assert protokol.lines() == []
     assert editor._taps == {}
 
 
-async def test_untick_releases_tap(
+async def test_stop_watching_releases_tap(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-close-in").click()
     assert editor._taps == {}
     assert protokol.lines() == []
+
+
+async def test_hiding_a_line_keeps_its_entries(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    driver.connections[0].push("/a", 1)
+    user.find(marker="monitor-visibility-in").click()
+    editor._refresh()
+    assert _rows(editor) == []
+    assert "in" in editor._taps
+    assert len(editor._taps["in"].messages()) == 1
+    assert one(user, "monitor-visibility-in").props["icon"] == "visibility_off"
+    user.find(marker="monitor-visibility-in").click()
+    editor._refresh()
+    assert len(_rows(editor)) == 1
+
+
+async def test_line_clear_only_clears_that_line(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
+) -> None:
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-visibility-out").click()
+    driver.connections[0].push("/in", 1)
+    set_value(user, "monitor-send-input-out", "/out 1")
+    user.find(marker="monitor-send-out").click()
+    user.find(marker="monitor-clear-in").click()
+    editor._refresh()
+    assert [row["address"] for row in _rows(editor)] == ["/out"]
+
+
+async def test_line_export_only_that_line(
+    user: User,
+    protokol: ProtokolState,
+    selection: ProtokolSelection,
+    driver: FormDriver,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    from nicegui import ui
+
+    downloads: list[tuple[bytes, str]] = []
+    monkeypatch.setattr(
+        ui.download,
+        "content",
+        lambda content, filename=None, media_type="": downloads.append((content, filename)),
+    )
+    editor = await _monitor(user, protokol, selection)
+    user.find(marker="monitor-visibility-in").click()
+    user.find(marker="monitor-visibility-out").click()
+    driver.connections[0].push("/in", 1)
+    set_value(user, "monitor-send-input-out", "/out 1")
+    user.find(marker="monitor-send-out").click()
+    editor._refresh()
+    user.find(marker="monitor-export-jsonl-in").click()
+    content, filename = downloads[-1]
+    assert [json.loads(line)["address"] for line in content.decode().splitlines()] == ["/in"]
+    assert "-in-" in filename
 
 
 async def test_messages_render_with_theme_tokens(
@@ -163,7 +224,7 @@ async def test_messages_render_with_theme_tokens(
     from nicegui import ui
 
     editor = await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
     driver.connections[0].push("/a<b>", 1)
     editor._refresh()
     with pytest.raises(AssertionError):
@@ -178,6 +239,7 @@ async def test_tapped_source_row_is_active(
     user: User, protokol: ProtokolState, selection: ProtokolSelection
 ) -> None:
     await _monitor(user, protokol, selection)
-    user.find(marker="monitor-source-in").click()
+    user.find(marker="monitor-visibility-in").click()
     assert "hw-list-item-active" in one(user, "monitor-source-in").classes
     assert "hw-list-item-active" not in one(user, "monitor-source-out").classes
+    assert one(user, "monitor-visibility-in").props["icon"] == "visibility"
