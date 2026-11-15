@@ -46,4 +46,5 @@ inlet to add an argument. Vectors go out as their components (`vf3` → three `f
 a tick sends only when the address, type tags or values differ from the last message sent.
 
 The Arg shape and the pins follow each other: typing the shape rebuilds the pins, and
-growing, unplugging (a grown pin) or reordering pins rewrites the shape.
+growing, unplugging (a grown pin), removing a pin from its menu or reordering pins rewrites
+the shape. Each of these is one undo step. A pin's label is its token (`f`, `vf3`).

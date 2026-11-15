@@ -7,10 +7,30 @@ import pytest
 from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode
 from haybale_protokol_osc.nodes.osc_send import OscSendNode
 from haywire.core.graph.base import BaseGraph
-from haywire.core.undo.actions.graph_actions import AddEdgeAction, RemoveElementsAction, ReorderPortsAction
+from haywire.core.errors.ledger import ErrorLedger, get_error_ledger, set_error_ledger
+from haywire.core.undo.actions.graph_actions import (
+    AddEdgeAction,
+    RemoveElementsAction,
+    RemovePortAction,
+    ReorderPortsAction,
+)
 from tests.helpers import make_node
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+def ledger() -> Any:
+    previous = get_error_ledger()
+    fresh = ErrorLedger(max_entries=20)
+    set_error_ledger(fresh)
+    yield fresh
+    set_error_ledger(previous)
+
+
+def _hook_entries(ledger: ErrorLedger) -> list[Any]:
+    """What the pin hooks got wrong (a raise, or a change to the node's ports)."""
+    return [entry for entry in ledger.query().entries if entry.operation == "Remove pin"]
 
 
 def _node(graph: Any, cls: Any, shape: str = "", x: int = 0) -> Any:
@@ -163,3 +183,64 @@ def test_receive_outlets_keep_their_order_with_a_shape(graph: BaseGraph) -> None
     assert order[:4] == ["received", "address_out", "from_gate", "args"]
     assert order[4:7] == ["arg_1", "arg_2", "match_1"]
     assert order[7:] == ["timetag", "status", _slot(receive)]
+
+
+@pytest.mark.parametrize("cls", [OscSendNode, OscReceiveNode])
+def test_removing_a_pin_drops_its_token_and_undo_redo_follow(
+    graph: BaseGraph, cls: Any, ledger: Any
+) -> None:
+    node = _node(graph, cls, shape="f i s", x=400)
+    first, second, third = (port_id for port_id, _ in _typed(node))
+    remove = RemovePortAction(graph, node.node_id, second)
+    remove.execute()
+    assert _shape(node) == "f s"
+    assert _typed(node) == [(first, "FLOAT"), (third, "STRING")]
+    remove.undo()
+    assert _shape(node) == "f i s"
+    assert _typed(node) == [(first, "FLOAT"), (second, "INT"), (third, "STRING")]
+    remove.execute()
+    assert _shape(node) == "f s"
+    assert _typed(node) == [(first, "FLOAT"), (third, "STRING")]
+    assert _hook_entries(ledger) == []
+    assert node.node._pins_mismatch() is None
+
+
+def test_removing_a_pin_keeps_skips_in_place(graph: BaseGraph) -> None:
+    receive = _node(graph, OscReceiveNode, shape="f _ i s")
+    _, second, _ = (port_id for port_id, _ in _typed(receive))
+    remove = RemovePortAction(graph, receive.node_id, second)
+    remove.execute()
+    assert _shape(receive) == "f _ s"
+    remove.undo()
+    assert _shape(receive) == "f _ i s"
+
+
+def test_a_removed_pin_is_refused_text_no_more(graph: BaseGraph) -> None:
+    """An invalid shape typed after a removal goes back to the shape the removal left."""
+    send = _node(graph, OscSendNode, shape="f i", x=400)
+    _, second = (port_id for port_id, _ in _typed(send))
+    RemovePortAction(graph, send.node_id, second).execute()
+    send.node.ports["arg_shape"].set_value("f q")
+    assert _shape(send) == "f"
+
+
+def test_removing_a_grown_pin_and_undo_keep_it_grown(graph: BaseGraph) -> None:
+    send = _node(graph, OscSendNode, shape="i", x=400)
+    number = _number(graph)
+    grown = _slot(send)
+    edge_id = _connect(graph, number, "value", send, grown).wrapper.edge_id
+    remove = RemovePortAction(graph, send.node_id, grown)
+    remove.execute()
+    assert _shape(send) == "i"
+    assert grown not in send.node.store.arg_grown
+    remove.undo()
+    assert _shape(send) == "i f"
+    assert send.node.ports[grown].is_linked()
+    RemoveElementsAction(graph, [], [edge_id], release_pins=True).execute()
+    assert _shape(send) == "i", "the restored pin still goes with its edge"
+    assert grown not in send.node.ports
+
+
+def test_argument_pin_labels_carry_no_position(graph: BaseGraph) -> None:
+    send = _node(graph, OscSendNode, shape="f vf3", x=400)
+    assert [port.label for port in send.node._arg_ports()] == ["f", "vf3"]

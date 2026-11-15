@@ -180,17 +180,21 @@ def test_invalid_text_is_reverted(graph: BaseGraph) -> None:
     assert "not applied" in str(wrapper.node.value("status"))
 
 
-def test_removed_pin_is_a_status_not_misaligned(graph: BaseGraph, tmp_path: Path, udp_port: int) -> None:
+def test_a_pin_removed_while_running_decodes_the_new_shape(
+    graph: BaseGraph, tmp_path: Path, udp_port: int
+) -> None:
     from haywire.core.undo.actions.graph_actions import RemovePortAction
 
     wrapper = _receive(graph, shape="f i s")
-    RemovePortAction(graph, wrapper.node_id, "arg_2").execute()
-    runs = record(wrapper, "arg_3", "status")
+    runs = record(wrapper, "arg_1", "arg_3", "status")
     with protokol_project(tmp_path, _gate(udp_port)), running(graph):
         _listening(wrapper)
-        _send(udp_port, "/x", 0.5, 7, "s")
-        assert wait_until(lambda: "Arg shape" in str(wrapper.node.value("status")))
-    assert all(run["arg_3"] != 7 for run in runs)
+        RemovePortAction(graph, wrapper.node_id, "arg_2").execute()
+        _send(udp_port, "/x", 0.5, "s")
+        assert wait_until(lambda: any(run["arg_3"] == "s" for run in runs))
+    hit = next(run for run in runs if run["arg_3"] == "s")
+    assert hit["arg_1"] == 0.5
+    assert "Arg shape" not in str(hit["status"])
 
 
 def test_auto_drops_only_for_one_exact_address_on_one_gate(graph: BaseGraph) -> None:

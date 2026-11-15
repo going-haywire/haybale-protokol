@@ -6,10 +6,13 @@ store keeps the ids in shape order. The pin edits a user makes rewrite the text:
 
 - connecting the empty ``ADD`` slot appends the edge type's token (undo takes it back);
 - deleting the edge that grew a pin removes the pin and its token (typed pins stay);
+- removing a pin from its menu removes its token (``on_pin_removed``; undo puts it back);
 - reordering pins reorders the tokens; ``_`` skips stay where they are.
 
 Every rewrite goes through the ``arg_shape`` port, whose ``on_change`` rebuilds the pins,
-inside the user's one action, so each edit is one undo step.
+inside the user's one action, so each edit is one undo step. The pin-menu hooks write it
+quietly instead: the framework has already removed or restored the pin, and a hook must not
+change ports.
 """
 
 from __future__ import annotations
@@ -89,10 +92,10 @@ class ArgPins:
         self.store.arg_slot = slot
         grown = getattr(self.store, "arg_grown", [])
         self.store.arg_grown = [port_id for port_id in grown if port_id in ids]
-        for position, (port_id, token) in enumerate(zip(ids, named, strict=True), start=1):
+        for port_id, token in zip(ids, named, strict=True):
             name = str(token.haywire_type)
             type_cls = BYTES if name == "BYTES" else getattr(builtin, name)
-            self.add(self._arg_spec(port_id, type_cls, PortOrigin.RESOLVED, f"{position}: {token.text}"))
+            self.add(self._arg_spec(port_id, type_cls, PortOrigin.RESOLVED, token.text))
         self.add(self._arg_spec(slot, ADD, PortOrigin.DECLARED, "+"))
 
     def _move_slot_last(self) -> None:
@@ -130,6 +133,23 @@ class ArgPins:
     def _write_shape(self, tokens: list[Token]) -> None:
         """Set the Arg shape text; its ``on_change`` rebuilds the pins."""
         self.ports["arg_shape"].set_value(" ".join(token.text for token in tokens))
+
+    def _write_shape_quietly(self, tokens: list[Token]) -> None:
+        """Set the Arg shape text without rebuilding the pins, which already match it."""
+        self._arg_quiet = True
+        try:
+            self._write_shape(tokens)
+        finally:
+            self._arg_quiet = False
+        self._accept_text()
+        self._shape_applied()
+
+    def _quiet_write(self) -> bool:
+        """True while ``_write_shape_quietly`` writes; the node's rebuild then does nothing."""
+        return bool(getattr(self, "_arg_quiet", False))
+
+    def _shape_applied(self) -> None:
+        """The Arg shape changed without a rebuild; a node that reads it elsewhere refreshes here."""
 
     # -- pin edits ------------------------------------------------------------------
 
@@ -206,6 +226,46 @@ class ArgPins:
         self.store.arg_grown = grown
         self._write_shape(tokens)
 
+    def on_pin_removed(self, port_id: str, spec: dict) -> Any:
+        """The user removed an argument pin: remove its token; return where it was, for undo."""
+        ids = self._arg_ids()
+        if port_id not in ids:
+            return None
+        try:
+            tokens = self._tokens()
+        except ShapeError:
+            return None
+        index = ids.index(port_id)
+        position = _named_positions(tokens)[index]
+        text = tokens[position].text
+        grown = list(getattr(self.store, "arg_grown", []))
+        was_grown = port_id in grown
+        del tokens[position]
+        del ids[index]
+        if was_grown:
+            grown.remove(port_id)
+        self.store.arg_ids = ids
+        self.store.arg_grown = grown
+        self._write_shape_quietly(tokens)
+        return [index, position, text, was_grown]
+
+    def on_pin_restored(self, port_id: str, memento: Any) -> None:
+        """The removal was undone and the pin is back: put its token back where it was."""
+        if memento is None or port_id in self._arg_ids():
+            return
+        index, position, text, was_grown = memento
+        try:
+            tokens = self._tokens()
+        except ShapeError:
+            return
+        tokens.insert(position, *parse_shape(text, receive=self.receive))
+        ids = self._arg_ids()
+        ids.insert(index, port_id)
+        self.store.arg_ids = ids
+        if was_grown:
+            self.store.arg_grown = [*getattr(self.store, "arg_grown", []), port_id]
+        self._write_shape_quietly(tokens)
+
     def reorder_ports(self, ordered_ids: list[str]) -> None:
         """Reorder pins as the base does, then reorder the Arg shape to match."""
         super().reorder_ports(ordered_ids)  # type: ignore[misc]
@@ -217,7 +277,7 @@ class ArgPins:
     def _reorder_tokens(self) -> None:
         ids = self._arg_ids()
         if any(port_id not in self.ports for port_id in ids):
-            return  # a pin was removed from its menu; the status guard reports it
+            return  # the pins no longer match the shape; the status guard reports it
         new_ids = sorted(ids, key=lambda port_id: self.ports[port_id].order)
         if new_ids == ids:
             return
