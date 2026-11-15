@@ -22,7 +22,7 @@ from typing import Any, Literal, cast, get_args
 
 import tomlkit
 
-from haywire.core.tomlio import plain, read_toml, write_toml  # noqa: TID251 -- not in the Author API yet, reported (issue #3)
+from haywire.api import read_toml, to_builtin, write_toml
 
 Direction = Literal["in", "out", "two-way"]
 
@@ -75,7 +75,7 @@ def load_gates_leniently(path: Path) -> tuple[dict[str, Gate], dict[str, str]]:
     if not path.is_file():
         return {}, {}
     try:
-        data = plain(read_toml(path))
+        data = to_builtin(read_toml(path))
     except (ValueError, OSError) as exc:  # read_toml raises toml.TomlDecodeError, a ValueError
         raise GateFileError(f"{path}: {exc}") from exc
     tables = data.get("gates", {})
@@ -144,7 +144,7 @@ def _put_table(tables: Any, gate: Gate) -> None:
     for key in [key for key in table if key not in values]:
         del table[key]
     for key, value in values.items():
-        if key not in table or plain(table[key]) != value:
+        if key not in table or to_builtin(table[key]) != value:
             table[key] = value
 
 

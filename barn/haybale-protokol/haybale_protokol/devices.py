@@ -16,7 +16,7 @@ from pathlib import Path
 
 import tomlkit
 
-from haywire.core.tomlio import plain, read_toml, write_toml  # noqa: TID251 -- not in the Author API yet, reported (issue #3)
+from haywire.api import read_toml, to_builtin, write_toml
 
 
 class DeviceListError(ValueError):
@@ -47,7 +47,7 @@ def load_devices(path: Path) -> dict[str, Device]:
     if not path.is_file():
         return {}
     try:
-        data = plain(read_toml(path))
+        data = to_builtin(read_toml(path))
     except (ValueError, OSError) as exc:  # read_toml raises toml.TomlDecodeError, a ValueError
         raise DeviceListError(f"{path}: {exc}") from exc
     tables = data.get("devices", {})
