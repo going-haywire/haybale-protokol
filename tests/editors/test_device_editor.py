@@ -45,6 +45,23 @@ async def test_device_not_connected_hint(user: User, selection: ProtokolSelectio
     assert "not connected" in str(one(user, "device-status-gone").text)
 
 
+async def test_device_seen_under_a_new_name(
+    user: User, selection: ProtokolSelection, tmp_path: Path
+) -> None:
+    class RenamingDriver(FormDriver):
+        def match_device(self, os_id: str, names: list[str]) -> str | None:
+            return "Synth 24:0" if os_id == "Synth 20:0" and "Synth 24:0" in names else None
+
+    protokol = ProtokolState()
+    protokol.project_root = tmp_path
+    protokol.register_driver(RenamingDriver(devices=(("Synth 24:0", "input"),)))
+    protokol.save_device(Device("synth", "fake", "Synth 20:0"))
+    await open_editor(user, DeviceEditor, make_context(protokol, selection))
+    text = str(one(user, "device-status-synth").text)
+    assert "not connected" not in text
+    assert "now 'Synth 24:0'" in text
+
+
 async def test_gate_selection_shows_line_and_cache(
     user: User, protokol: ProtokolState, selection: ProtokolSelection, driver: FormDriver
 ) -> None:

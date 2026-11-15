@@ -13,7 +13,7 @@ from haywire.api.workbench import AccessTier, BaseEditor, SessionContext, SlotNa
 from nicegui import ui
 
 from haybale_protokol.devices import Device
-from haybale_protokol.drivers import list_devices
+from haybale_protokol.drivers import find_device, list_devices
 from haybale_protokol.gate_status import gate_status
 from haybale_protokol.editor_layout import list_row, scroll_area
 from haybale_protokol.gates import Gate
@@ -187,9 +187,12 @@ class DeviceEditor(BaseEditor):
         if driver is None:
             return f"{device.os_id} · protocol not installed"
         seen = list_devices(driver)
-        if seen is not None and device.os_id not in {os_id for os_id, _ in seen}:
+        if seen is None:
+            return device.os_id
+        found = find_device(driver, device.os_id, seen)
+        if found is None:
             return f"{device.os_id} · not connected"
-        return device.os_id
+        return device.os_id if found == device.os_id else f"{device.os_id} · now '{found}'"
 
     # -- dialogs ---------------------------------------------------------------------------
 

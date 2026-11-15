@@ -95,7 +95,9 @@ def test_no_helper_is_imported_from_a_component_module() -> None:
                 continue
             parts = node.module.split(".")
             if len(parts) == 3 and parts[0].startswith("haybale_protokol") and parts[1] in COMPONENT_FOLDERS:
-                found += [
-                    f"{path.name}: {node.module}.{a.name}" for a in node.names if not a.name[0].isupper()
-                ]
+                module = importlib.import_module(node.module)
+                for alias in node.names:
+                    obj = getattr(module, alias.name, None)
+                    if not (isinstance(obj, type) and issubclass(obj, _component_bases())):
+                        found.append(f"{path.name}: {node.module}.{alias.name}")
     assert found == []

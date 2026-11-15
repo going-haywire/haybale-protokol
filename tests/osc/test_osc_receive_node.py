@@ -191,3 +191,18 @@ def test_removed_pin_is_a_status_not_misaligned(graph: BaseGraph, tmp_path: Path
         _send(udp_port, "/x", 0.5, 7, "s")
         assert wait_until(lambda: "Arg shape" in str(wrapper.node.value("status")))
     assert all(run["arg_3"] != 7 for run in runs)
+
+
+def test_auto_drops_only_for_one_exact_address_on_one_gate(graph: BaseGraph) -> None:
+    from haywire.core.execution import QueueMode
+
+    node = _receive(graph, address="/fader/1").node
+    node.on_assembly()
+    assert node.event_subscription.queue_mode is QueueMode.DROP
+    node.ports["address"].set_value("/fader/*")
+    node.on_assembly()
+    assert node.event_subscription.queue_mode is QueueMode.BLOCK
+    node.ports["address"].set_value("/fader/1")
+    node.ports["gate"].set_value("a, b")
+    node.on_assembly()
+    assert node.event_subscription.queue_mode is QueueMode.BLOCK

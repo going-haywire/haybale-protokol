@@ -112,10 +112,10 @@ def test_only_changes_retries_a_gate_that_failed(graph: BaseGraph, tmp_path: Pat
     try:
         with protokol_project(tmp_path, _out("a", a), _out("b", b)):
             node.on_startup(context)
-            real_send = node._uses["b"].line.send
-            node._uses["b"].line.send = lambda message: False  # b is down for the first tick
+            real_send = node._sender._uses["b"].line.send
+            node._sender._uses["b"].line.send = lambda message: False  # b is down for the first tick
             node.worker(context)
-            node._uses["b"].line.send = real_send
+            node._sender._uses["b"].line.send = real_send
             node.worker(context)  # same message: only b, which missed it, gets it now
             node.worker(context)  # same message again: nobody needs it
             status = str(node.value("status"))
@@ -134,11 +134,11 @@ def test_statuses_name_the_gate_that_failed(graph: BaseGraph, tmp_path: Path) ->
     receive.node.ports["gate"].set_value("a, m")
     send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0)).node
     send.ports["gate"].set_value("m")
-    gates = (_in("a", port), Gate("m", "midi", "in"), Gate("m", "midi", "out"))
+    gates = (_in("a", port), Gate("m", "dmx", "in"), Gate("m", "dmx", "out"))
     with protokol_project(tmp_path, gates[0], gates[1]), running(graph):
         assert wait_until(lambda: "m: protocol not installed" in str(receive.node.value("status")))
     context = MagicMock()
-    with protokol_project(tmp_path, Gate("m", "midi", "out")):
+    with protokol_project(tmp_path, Gate("m", "dmx", "out")):
         send.on_startup(context)
         status = str(send.value("status"))
         send.on_shutdown(context)

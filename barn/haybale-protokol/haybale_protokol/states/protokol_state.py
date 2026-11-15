@@ -6,7 +6,6 @@ import logging
 import re
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -30,6 +29,7 @@ from haybale_protokol.gates import (
     write_gate,
 )
 from haybale_protokol.line import Line, LineOpenError
+from haybale_protokol.line_use import LineUse
 from haybale_protokol.signals import ProtokolChanged
 
 if TYPE_CHECKING:
@@ -41,22 +41,6 @@ _GATE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 #: The grace period when the setting cannot be read.
 DEFAULT_GRACE_S = 2.0
-
-
-@dataclass(eq=False)
-class LineUse:
-    """One user's hold on a Line, through a Gate. Give it back with ``release()``."""
-
-    line: Line
-    token: int
-    gate: Gate
-    _released: bool = field(default=False, repr=False)
-
-    def release(self) -> None:
-        """Give the Line back; a second call does nothing."""
-        if not self._released:
-            self._released = True
-            self.line.remove_user(self.token)
 
 
 @state(
@@ -186,6 +170,8 @@ class ProtokolState(AppState):
         driver, device, key = resolved
         with self._lock:
             line = self._lines.get(key)
+            if line is not None and not line.is_closed and getattr(line.connection, "gone", False):
+                line.close()  # its port went away (a Device unplugged): a new Line opens it afresh
             if line is not None and line.is_closed:
                 self._lines.pop(key, None)
                 line = None

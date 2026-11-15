@@ -265,7 +265,9 @@ class OscReceiveNode(ArgPins, BaseNode):
         with self._lock:
             self._skipped = 0
             self._skip_shown = -SKIP_STATUS_INTERVAL_S
-        queue_mode, _size, start_value = resolve_dispatch(self.dispatch, stream=True)
+        queue_mode, _size, start_value = resolve_dispatch(
+            self.dispatch, stream=True, single_source=self._single_source()
+        )
         node_id = self.node_id
 
         def fire(payload: dict[str, Any]) -> None:
@@ -373,8 +375,18 @@ class OscReceiveNode(ArgPins, BaseNode):
             self._pattern = pattern
             self._decode_tokens = tokens if any(t.haywire_type for t in tokens) else None
 
+    def _single_source(self) -> bool:
+        """One exact address on one gate."""
+        try:
+            exact = compile_pattern(str(self.value("address") or "")).is_exact
+        except ValueError:
+            exact = False
+        return exact and len(gate_names(str(self.value("gate") or ""))) <= 1
+
     def _subscribe(self) -> None:
-        queue_mode, size, _start = resolve_dispatch(self.dispatch, stream=True)
+        queue_mode, size, _start = resolve_dispatch(
+            self.dispatch, stream=True, single_source=self._single_source()
+        )
         self.event_subscription = event_source_for(self.node_id, queue_mode, size)
 
 

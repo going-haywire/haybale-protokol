@@ -15,7 +15,8 @@ from collections.abc import Callable
 from typing import Any
 
 from haybale_protokol.drivers import Message
-from haybale_protokol.states.protokol_state import LineUse, ProtokolState
+from haybale_protokol.line_use import LineUse
+from haybale_protokol.states.protokol_state import ProtokolState
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class ReceiveBinding:
     ) -> None:
         self.gate_name = gate_name
         self.dropped = 0
-        """Payloads lost because a Block-mode binding's own queue was full."""
+        """Payloads lost because a Block-mode binding's own queue was full (the oldest go first)."""
         self._accept = accept
         self._fire = fire
         self._pending: deque[Payload] = deque()
@@ -92,8 +93,8 @@ class ReceiveBinding:
             if self._closing:
                 return
             if len(self._pending) >= self._capacity:
+                self._pending.popleft()  # keep the newest: a stop behind a backlog of clocks still arrives
                 self.dropped += 1
-                return
             self._pending.append(payload)
             self._wake.notify()
 

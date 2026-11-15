@@ -26,7 +26,8 @@ from haybale_protokol.icons import icon as icons
 from haybale_protokol.monitor_export import MonitorRow, to_csv, to_jsonl
 from haybale_protokol.signals import ProtokolChanged
 from haybale_protokol.states.protokol_selection import ProtokolSelection
-from haybale_protokol.states.protokol_state import LineUse, ProtokolState
+from haybale_protokol.line_use import LineUse
+from haybale_protokol.states.protokol_state import ProtokolState
 from haybale_protokol.taps import Tap
 
 logger = logging.getLogger(__name__)
