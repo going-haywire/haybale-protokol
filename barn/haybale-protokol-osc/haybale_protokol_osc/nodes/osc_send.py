@@ -5,11 +5,22 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from haywire.core.execution.execution_context import ExecutionContext
-from haywire.barn.builtin.types import BOOL
-from haywire.core.node import BaseNode, NodeType, node
-from haywire.core.settings import NodeSettings, Promotable, bag, setting
-from haywire.core.types import PortOrigin
+from haywire.api import (
+    ADD,
+    BOOL,
+    EXEC,
+    STRING,
+    BaseNode,
+    ExecutionContext,
+    NodeSettings,
+    NodeType,
+    PortOrigin,
+    Promotable,
+    TextWidget,
+    bag,
+    node,
+    setting,
+)
 
 from haybale_protokol.drivers import Message
 from haybale_protokol.gate_names import gate_names, named_status
@@ -82,9 +93,6 @@ class OscSendNode(ArgPins, BaseNode):
     sending = bag(SendSettings)
 
     def init(self) -> None:
-        from haywire.barn.builtin.types import ADD, EXEC, STRING
-        from haywire.barn.builtin.widgets import TextWidget
-
         commit = TextWidget.config(properties={"commit": True})
         self.add(
             STRING.as_config(

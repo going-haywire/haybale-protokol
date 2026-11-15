@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from haywire.ui import elements as hui
+from haywire.api.workbench import hui
 from nicegui import ui
 
 from haybale_protokol.devices import DeviceListError, device_list_path, load_devices

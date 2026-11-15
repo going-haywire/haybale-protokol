@@ -8,10 +8,19 @@ import time
 from functools import partial
 from typing import Any
 
-from haywire.core.execution.execution_context import ExecutionContext
-from haywire.core.node import BaseNode, NodeType, node
-from haywire.core.settings import bag
-from haywire.core.types import PortOrigin
+from haywire.api import (
+    ADD,
+    EXEC,
+    FLOAT,
+    STRING,
+    BaseNode,
+    ExecutionContext,
+    NodeType,
+    PortOrigin,
+    TextWidget,
+    bag,
+    node,
+)
 
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
@@ -93,9 +102,6 @@ class OscReceiveNode(ArgPins, BaseNode):
     dispatch = bag(ReceiveDispatchSettings)
 
     def init(self) -> None:
-        from haywire.barn.builtin.types import EXEC, STRING
-        from haywire.barn.builtin.widgets import TextWidget
-
         commit = TextWidget.config(properties={"commit": True})
         self.add(
             STRING.as_config(
@@ -173,7 +179,6 @@ class OscReceiveNode(ArgPins, BaseNode):
 
     def hb_resolve_capture(self, port: Any, edge_wrapper: Any) -> None:
         """Give a bare capture outlet the type of the inlet it was connected to."""
-        from haywire.barn.builtin.types import ADD
 
         if port.type_cls is None or not issubclass(port.type_cls, ADD):
             return
@@ -185,7 +190,6 @@ class OscReceiveNode(ArgPins, BaseNode):
 
     def release_pins(self, port_ids: list[str]) -> list[str]:
         """Grown argument pins go with their edge; a capture outlet left bare turns back into `ADD`."""
-        from haywire.barn.builtin.types import ADD
 
         released = ArgPins.release_pins(self, [p for p in port_ids if ARG_ID.fullmatch(p)])
         for port_id in port_ids:
@@ -209,8 +213,6 @@ class OscReceiveNode(ArgPins, BaseNode):
                     self.add(self._capture_spec(port_id, type_cls, PortOrigin.RESOLVED))
 
     def _add_rebuilt_ports(self, pattern: AddressPattern, tokens: list[Token], kept: dict[str, Any]) -> None:
-        from haywire.barn.builtin.types import ADD, FLOAT, STRING
-
         from haybale_core.types.specs import LIST
 
         self.add(

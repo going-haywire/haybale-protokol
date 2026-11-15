@@ -1,7 +1,6 @@
 """ProtokolSettings — how Lines behave on this machine."""
 
-from haywire.barn.builtin.types import FLOAT
-from haywire.core.settings import LibrarySettings, setting, settings
+from haywire.api import FLOAT, LibrarySettings, setting, settings
 
 
 @settings(namespace="protokol", label="Protokol", description="Lines shared by gates and the Monitor")

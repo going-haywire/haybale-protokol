@@ -22,7 +22,7 @@ from typing import Any, Literal, cast, get_args
 
 import tomlkit
 
-from haywire.core.tomlio import plain, read_toml, write_toml
+from haywire.core.tomlio import plain, read_toml, write_toml  # noqa: TID251 -- not in the Author API yet, reported (issue #3)
 
 Direction = Literal["in", "out", "two-way"]
 
