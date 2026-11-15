@@ -1,4 +1,4 @@
-# haybale-protokol-midi — component index (v0.0.5)
+# haybale-protokol-midi — component index (v0.0.6)
 
 ## node
 - `haybale-protokol-midi:node:MidiReceiveNode` — MIDI Receive — Triggered for each MIDI message on its gates that passes its kind, channel and number  _tags: midi, receive, note, cc, controller, protokol_
