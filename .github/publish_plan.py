@@ -77,4 +77,17 @@ if wrong:
     names = ", ".join(f"{item['dist']} {item['version']}" for item in wrong)
     fail(f"Tag {tag} does not match the committed version of: {names}. Nothing was uploaded.")
 
+# PYPI_SKIP (a repository variable) leaves libraries out of this run, e.g. one whose
+# PyPI pending publisher is not registered yet. Clear it and re-run the tag to publish them.
+skip = {name.strip() for name in os.environ.get("PYPI_SKIP", "").split(",") if name.strip()}
+unknown = skip - {item["dist"] for item in libraries}
+if unknown:
+    fail(f"PYPI_SKIP names no library under barn/: {', '.join(sorted(unknown))}. Nothing was uploaded.")
+for item in libraries:
+    if item["dist"] in skip:
+        print(f"::warning::Skipping {item['dist']} (PYPI_SKIP); re-run this tag once it is cleared.")
+libraries = [item for item in libraries if item["dist"] not in skip]
+if not libraries:
+    fail("PYPI_SKIP leaves no library to publish.")
+
 emit(True, libraries, standalone)
