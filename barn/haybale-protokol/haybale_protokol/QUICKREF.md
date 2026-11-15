@@ -1,4 +1,4 @@
-# haybale-protokol — component index (v0.0.3)
+# haybale-protokol — component index (v0.0.4)
 
 ## widget
 - `haybale-protokol:widget:GateSelectWidget` — GateSelectWidget — Pick gates as chips from the gates that fit the node, each coloured by its state
