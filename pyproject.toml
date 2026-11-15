@@ -38,3 +38,6 @@ ban-relative-imports = "all"
 testpaths = ["tests"]
 timeout = 30
 markers = ["integration: needs the full library system"]
+
+[tool.haywire.marketstall]
+distribute = "pypi"

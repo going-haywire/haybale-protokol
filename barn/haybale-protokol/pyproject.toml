@@ -20,6 +20,9 @@ dependencies = ["haywire-core>=0.5.0", "nicegui", "tomlkit"]
 [project.entry-points."haywire.libraries"]
 haybale-protokol = "haybale_protokol:Library"
 
+[project.urls]
+Source = "https://github.com/going-haywire/haybale-protokol"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
