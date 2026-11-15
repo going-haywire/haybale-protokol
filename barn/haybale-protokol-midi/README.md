@@ -57,7 +57,17 @@ differs from the last one a gate took. An out-of-range value is dropped and name
 `sysex 7D 01 02`, `clock`, `start`, `continue`, `stop`, `raw 90 3C 64` (hex).
 
 <!-- marketstall:share-url:start -->
-*Subscribe URL not yet published.*
+Always the latest (tracks the current branch):
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/master/marketstall.toml
+```
+
+Frozen to this version:
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/v0.0.5/marketstall.toml
+```
 <!-- marketstall:share-url:end -->
 
 MIDI for haybale-protokol: Device gates, MIDI Receive and Send nodes
