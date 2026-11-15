@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from haywire.core.types import PortOrigin
+from haywire.api import ADD, PortOrigin
 
 from haybale_protokol_osc.shape import ShapeError, Token, parse_shape, token_for_type
 
@@ -73,8 +73,7 @@ class ArgPins:
 
     def _add_arg_ports(self, tokens: list[Token]) -> None:
         """Add one pin per named token, then the empty slot. Call inside the node's ``rejig``."""
-        from haywire.barn.builtin import types as builtin
-        from haywire.barn.builtin.types import ADD
+        import haywire.api as builtin
 
         from haybale_core.types.specs import BYTES
 
@@ -136,7 +135,6 @@ class ArgPins:
 
     def hb_grow(self, port: Any, edge_wrapper: Any) -> None:
         """An edge on the empty slot becomes an argument of the edge's type."""
-        from haywire.barn.builtin.types import ADD
 
         if port.type_cls is None or not issubclass(port.type_cls, ADD) or port.id != self._slot_id():
             return

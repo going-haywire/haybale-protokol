@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from haywire.core.signals import signal_field
-from haywire.core.state.base import SessionState
-from haywire.core.state.decorator import state
+from haywire.api.workbench import SessionState, signal_field, state
 
 from haybale_protokol.drivers import LineKey
 
