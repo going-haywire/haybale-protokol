@@ -2,7 +2,7 @@
 [project]
 # ── generated from haybale.toml at publish; hand-edits are reported as drift ─
 name = "haybale-protokol-osc"  # from haybale.name
-description = "OSC for haybale-protokol: UDP gates, OSC Receive and Send nodes"  # from haybale.description
+description = "OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes"  # from haybale.description
 keywords = ["osc", "control", "protocol", "network"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
