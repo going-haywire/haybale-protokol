@@ -116,7 +116,7 @@ class MidiInConnection:
         return f"{text} · {self.bad} bad" if self.bad else text
 
     def start(self, deliver: Callable[[Message], None]) -> None:
-        midi = rtmidi.MidiIn(queue_size_limit=QUEUE_SIZE)
+        midi = _midi(rtmidi.MidiIn, queue_size_limit=QUEUE_SIZE)
         index, self.port = _find_port(midi, self.port)
         midi.ignore_types(sysex=False, timing=False, active_sense=True)
         try:
@@ -182,7 +182,7 @@ class MidiOutConnection:
         return f"sending to MIDI '{self.port}' · sent {self.sent} · dropped {self.dropped}"
 
     def start(self, deliver: Callable[[Message], None]) -> None:
-        midi = rtmidi.MidiOut()
+        midi = _midi(rtmidi.MidiOut)
         index, self.port = _find_port(midi, self.port)
         try:
             midi.open_port(index)
@@ -218,6 +218,18 @@ class MidiOutConnection:
             return
         self._checked = time.monotonic()
         self.gone = self.port not in self._midi.get_ports()
+
+
+def _midi(cls: Any, **options: Any) -> Any:
+    """An rtmidi port object.
+
+    Raises:
+        OSError: This machine has no MIDI system (e.g. Linux without ALSA's sequencer).
+    """
+    try:
+        return cls(**options)
+    except Exception as exc:  # rtmidi's own error types
+        raise OSError(f"no MIDI system on this machine ({exc})") from exc
 
 
 def match_port(name: str, ports: Sequence[str], suffix: re.Pattern[str] | None) -> str | None:

@@ -22,6 +22,8 @@ map `keys` to their own keyboard. MIDI inputs and outputs are separate ports wit
 names. A gate whose port is not connected reports `cannot open: no MIDI port '…'` and the graph
 runs on. A port unplugged while the graph runs reports `port gone`; sends to it are dropped.
 Reconnect the device and restart the graph to open it again.
+On a machine without a MIDI system (Linux without ALSA's sequencer), every MIDI gate reports
+`cannot open: no MIDI system on this machine (…)`.
 
 On Linux (ALSA) and Windows, the OS appends a number to every port name (` 20:0`, ` 1`) that can
 change with plug order or after a reboot. When the exact name is missing, the port whose name

@@ -26,6 +26,18 @@ VIRTUAL = _virtual_supported()
 needs_virtual = pytest.mark.skipif(not VIRTUAL, reason="MIDI virtual ports are not available here")
 
 
+def _backend_present() -> bool:
+    try:
+        rtmidi.MidiIn().delete()
+        return True
+    except Exception:
+        return False
+
+
+BACKEND = _backend_present()
+needs_backend = pytest.mark.skipif(not BACKEND, reason="this machine has no MIDI system")
+
+
 class Source:
     """A virtual port that sends: other programs see it as a MIDI input."""
 

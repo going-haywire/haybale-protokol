@@ -11,7 +11,7 @@ from haybale_protokol_midi.nodes.midi_receive import MidiReceiveNode
 from haywire.core.graph.base import BaseGraph
 from haywire.core.graph.scheduler import SyncScheduler
 from tests.helpers import make_node
-from tests.midi.conftest import Source, needs_virtual
+from tests.midi.conftest import Source, needs_backend, needs_virtual
 from tests.osc.graphs import protokol_project, record, running, wait_until
 
 pytestmark = pytest.mark.integration
@@ -123,6 +123,7 @@ def test_two_gates(graph: BaseGraph, tmp_path: Path) -> None:
         b.close()
 
 
+@needs_backend
 def test_missing_device_status(graph: BaseGraph, tmp_path: Path) -> None:
     save_devices(device_list_path(), [Device("keys", "midi", "no such port")])
     wrapper = _receive(graph)
