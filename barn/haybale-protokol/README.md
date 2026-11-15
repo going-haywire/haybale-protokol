@@ -77,7 +77,17 @@ Receive and Send nodes report problems on their `status` outlet; nothing crashes
 | `gate 'x': ...` | The gate's options are incomplete or wrong, or disagree with another gate on the same Line |
 
 <!-- marketstall:share-url:start -->
-*Subscribe URL not yet published — push this repo to a git remote, then run `uv run --frozen haywire share --bump patch`.*
+Always the latest (tracks the current branch):
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/master/marketstall.toml
+```
+
+Frozen to this version:
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/v0.0.2/marketstall.toml
+```
 <!-- marketstall:share-url:end -->
 
 Control protocols for graphs: gates, shared lines and the base for OSC, MIDI and gamepad

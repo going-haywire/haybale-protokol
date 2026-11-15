@@ -676,14 +676,20 @@ wheels = [
 
 [[package]]
 name = "haybale-protokol"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "barn/haybale-protokol" }
 dependencies = [
     { name = "haywire-core" },
+    { name = "nicegui" },
+    { name = "tomlkit" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "haywire-core", specifier = ">=0.5.0" }]
+requires-dist = [
+    { name = "haywire-core", specifier = ">=0.5.0" },
+    { name = "nicegui" },
+    { name = "tomlkit" },
+]
 
 [[package]]
 name = "haybale-protokol-dev"
@@ -730,7 +736,7 @@ dev = [
 
 [[package]]
 name = "haybale-protokol-osc"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "barn/haybale-protokol-osc" }
 dependencies = [
     { name = "haybale-core" },
