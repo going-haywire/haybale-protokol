@@ -107,6 +107,8 @@ class OscSendNode(ArgPins, BaseNode):
 
     def hb_rebuild(self, port: Any = None, *_args: Any) -> None:
         """Rebuild the argument inlets from the Arg shape; an invalid shape is put back."""
+        if self._quiet_write():
+            return
         try:
             tokens = self._tokens()
         except ShapeError as exc:

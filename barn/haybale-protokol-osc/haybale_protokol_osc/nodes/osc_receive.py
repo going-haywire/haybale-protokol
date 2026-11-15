@@ -160,6 +160,8 @@ class OscReceiveNode(ArgPins, BaseNode):
 
         An invalid address or shape is put back to the last one that applied.
         """
+        if self._quiet_write():
+            return
         try:
             pattern = compile_pattern(str(self.value("address") or ""))
             tokens = self._tokens()
@@ -374,6 +376,10 @@ class OscReceiveNode(ArgPins, BaseNode):
         with self._lock:
             self._pattern = pattern
             self._decode_tokens = tokens if any(t.haywire_type for t in tokens) else None
+
+    def _shape_applied(self) -> None:
+        """A pin-menu removal or its undo changed the Arg shape: decode by the new one."""
+        self._read_config()
 
     def _single_source(self) -> bool:
         """One exact address on one gate."""

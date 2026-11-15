@@ -163,8 +163,8 @@ address; the ports follow the filter.** Changing the filter rebuilds the ports.
 - **Arg shape**: the single source of truth for argument pins, a text field applied on blur.
   Tokens: OSC type tags, `vi2`–`vi4`, `vf2`–`vf4`, `m3`, `m4` (to `VEC*` / `MAT*`), and on
   Receive `_` / `_n` to skip arguments. By default the node has one `args` list outlet.
-  Growing a pin through `ADD`, removing it, or reordering it rewrites the field; each change is
-  one undo step. `q` is not a token until core has a quaternion type; use `vf4`.
+  Growing a pin through `ADD`, removing it (by unplugging a grown pin or from the pin menu), or
+  reordering it rewrites the field; each change is one undo step. A pin's label is its token. `q` is not a token until core has a quaternion type; use `vf4`.
 - **Send**: `ADD` inlets whose order is the argument order; a `VEC3F` goes out as three `f`.
   An unconnected inlet sends its own widget value — there is no `_` on Send. The node shows
   its resulting shape. Default wire types are `f`/`i`; `d`/`h` in the shape for 64-bit.
@@ -267,9 +267,10 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
   or control node's outlet from another flow; `set_node_type` in the node canon. (`ExternalEvent` dropped: check 1 chose
   `CallbackEvent`, which needs no new doc.)
 - **Proposed for core:** a `QUAT` type.
-- **Proposed for core, last slice:** a node hook pair for pin-menu removal,
-  `on_port_removed(port_id, spec)` from `remove_port()` and `on_port_restored(port_id)` from
-  `RemovePortAction` undo, so OSC nodes rewrite their Arg shape (own state only: text and
-  store, no pin rebuild; argument pin labels lose their position numbers). Until then a
-  removed argument pin shows "pins and Arg shape differ: retype the Arg shape". Deferred by
-  the owner until haywire-repo's workflow redesign lands; it is the last slice of this work.
+- **Landed in core (haywire-core 0.5, ADR 0082):** the pin-menu removal hooks
+  `on_pin_removed(port_id, spec) -> memento`, called by `RemovePortAction` after the port is
+  gone (and again on redo), and `on_pin_restored(port_id, memento)` on undo, after the port
+  and its edges are back. The OSC nodes remove or reinsert the token and return
+  `[index, position, token, was_grown]` as the memento. They write the Arg shape with their
+  own rebuild suppressed (a hook must not change ports), and OSC Receive refreshes its decode
+  tokens under its lock. Argument pin labels are the bare token, since positions shift.
