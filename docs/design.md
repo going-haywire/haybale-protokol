@@ -50,7 +50,9 @@ not on this machine is an **Unbound gate**. Either is a status on the node, neve
   direction, ports, hosts, TCP framing, bind address, OSCQuery advertising flag.
 - **Device list** — `~/.haywire/protokol-devices.toml`: device names chosen by the user,
   mapped to OS identifiers (MIDI port names, SDL GUIDs). Shared by every project on the
-  machine. Holds nothing about network peers.
+  machine. Holds nothing about network peers. A driver may match an OS identifier that
+  changed a little (MIDI on Linux and Windows appends a number that changes with plug order):
+  the exact name first, else the one name equal without that number, never a guess between two.
 
 A MIDI or gamepad gate names a **Device**; network gates name none. A network interface is
 never stored: a gate stores a subnet, and the interface follows from it.

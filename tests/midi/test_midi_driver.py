@@ -158,3 +158,24 @@ def test_listing_devices_without_a_midi_backend_is_empty(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(driver_module.rtmidi, "MidiIn", broken)
     assert MidiDriver().list_devices() == []
+
+
+def test_a_changed_alsa_suffix_still_opens_the_port(
+    state: ProtokolState, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import haybale_protokol_midi.driver as driver_module
+
+    monkeypatch.setattr(driver_module, "PORT_SUFFIX", driver_module.ALSA_SUFFIX)
+    source = Source(f"protokol-boot-{time.monotonic_ns() % 100000} 24:0")
+    try:
+        saved = source.name.rsplit(" ", 1)[0] + " 20:0"
+        _bind(tmp_path, (Gate("knobs", "midi", "in", device="knobs"), Device("knobs", "midi", saved)))
+        received: list[Message] = []
+        use = state.use("knobs", "in", received.append)
+        assert isinstance(use, LineUse), use
+        source.send(0xB0, 7, 64)
+        assert wait_for(lambda: len(received) == 1)
+        assert source.name in use.line.status
+        use.release()
+    finally:
+        source.close()

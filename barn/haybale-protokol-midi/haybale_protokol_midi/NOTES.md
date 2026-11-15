@@ -21,6 +21,11 @@ names. A gate whose port is not connected reports `cannot open: no MIDI port '�
 runs on. A port unplugged while the graph runs reports `port gone`; sends to it are dropped.
 Reconnect the device and restart the graph to open it again.
 
+On Linux (ALSA) and Windows, the OS appends a number to every port name (` 20:0`, ` 1`) that can
+change with plug order or after a reboot. When the exact name is missing, the port whose name
+matches without that number is used, and the Device editor shows `now '…'`. Two alike devices
+(two of the same controller) never match that way; map them again in the Device editor.
+
 ## Kinds
 
 Both nodes have a **Kind**, a **Channel** (1–16, or 0 for any) and a **Number** (note or

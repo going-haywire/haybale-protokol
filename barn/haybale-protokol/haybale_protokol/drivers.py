@@ -137,6 +137,20 @@ def list_devices(driver: Any) -> Sequence[tuple[str, str]] | None:
     return tuple(listing()) if callable(listing) else None
 
 
+def find_device(driver: Any, os_id: str, seen: Sequence[tuple[str, str]]) -> str | None:
+    """The OS name among ``seen`` that a Device's ``os_id`` stands for now, or ``None``.
+
+    The driver's ``match_device(os_id, names)`` decides when it has one (an OS may append a number
+    that changes between boots); otherwise only the exact name matches.
+    """
+    names = [name for name, _ in seen]
+    match = getattr(driver, "match_device", None)
+    if callable(match):
+        found = match(os_id, names)
+        return found if isinstance(found, str) else None
+    return os_id if os_id in names else None
+
+
 def uses_devices(driver: Any) -> bool:
     """Whether the driver's gates name a Device."""
     return bool(getattr(driver, "uses_devices", False))

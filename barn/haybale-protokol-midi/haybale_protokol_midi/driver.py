@@ -1,13 +1,18 @@
 """The MIDI Protocol driver: one Line per Device and direction, through python-rtmidi.
 
 A MIDI gate is ``in`` or ``out`` and names a Device; the Device's OS id is the rtmidi port name
-(inputs and outputs are separate ports with their own names). rtmidi calls back on its own thread
-for each message, which is the Line's thread.
+(inputs and outputs are separate ports with their own names). Each input reads on its own thread,
+which is the Line's thread.
+
+On Linux (ALSA) and Windows (WinMM) rtmidi appends a number to each port name that can change
+with plug order or between boots; ``match_port`` then also finds the port by the name without it.
 """
 
 from __future__ import annotations
 
 import logging
+import re
+import sys
 import threading
 import time
 from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -28,6 +33,15 @@ POLL_S = 0.001
 QUEUE_SIZE = 4096
 #: Seconds between checks that a port still exists (an unplugged Device).
 PORT_CHECK_S = 0.5
+
+#: What ALSA appends to a port name: `` client:port``.
+ALSA_SUFFIX = re.compile(r"\s+\d+:\d+$")
+#: What WinMM appends to a port name: `` index``.
+WINMM_SUFFIX = re.compile(r"\s+\d+$")
+#: This machine's appended suffix; CoreMIDI (macOS) appends none.
+PORT_SUFFIX: re.Pattern[str] | None = (
+    ALSA_SUFFIX if sys.platform.startswith("linux") else WINMM_SUFFIX if sys.platform == "win32" else None
+)
 
 
 class MidiDriver:
@@ -63,6 +77,9 @@ class MidiDriver:
     def parse_test_message(self, text: str) -> Message:
         return midi_messages.parse_test_message(text)
 
+    def match_device(self, os_id: str, names: Sequence[str]) -> str | None:
+        return match_port(os_id, names, PORT_SUFFIX)
+
     def list_devices(self) -> list[tuple[str, str]]:
         """Every MIDI port on this machine, as ``(port name, "input" | "output" | "input and output")``."""
         try:
@@ -84,6 +101,7 @@ class MidiInConnection:
 
     def __init__(self, port: str) -> None:
         self.port = port
+        """The port name as opened (the Device's name, or what it is called on this boot)."""
         self.bad = 0
         self.gone = False
         """True once the port disappeared (the Device was unplugged)."""
@@ -99,7 +117,7 @@ class MidiInConnection:
 
     def start(self, deliver: Callable[[Message], None]) -> None:
         midi = rtmidi.MidiIn(queue_size_limit=QUEUE_SIZE)
-        index = _index_of(midi, self.port)
+        index, self.port = _find_port(midi, self.port)
         midi.ignore_types(sysex=False, timing=False, active_sense=True)
         try:
             midi.open_port(index)
@@ -147,6 +165,7 @@ class MidiOutConnection:
 
     def __init__(self, port: str) -> None:
         self.port = port
+        """The port name as opened (the Device's name, or what it is called on this boot)."""
         self.sent = 0
         self.dropped = 0
         self.gone = False
@@ -164,7 +183,7 @@ class MidiOutConnection:
 
     def start(self, deliver: Callable[[Message], None]) -> None:
         midi = rtmidi.MidiOut()
-        index = _index_of(midi, self.port)
+        index, self.port = _find_port(midi, self.port)
         try:
             midi.open_port(index)
         except Exception as exc:
@@ -201,17 +220,33 @@ class MidiOutConnection:
         self.gone = self.port not in self._midi.get_ports()
 
 
-def _index_of(midi: Any, port: str) -> int:
-    """The index of ``port`` among ``midi``'s ports.
+def match_port(name: str, ports: Sequence[str], suffix: re.Pattern[str] | None) -> str | None:
+    """The port among ``ports`` that ``name`` stands for, or ``None``.
+
+    The exact name first; else, when the OS appends ``suffix``, the one port whose name without it
+    equals ``name`` without it. Two alike devices never match that way: it would be a guess.
+    """
+    if name in ports:
+        return name
+    if suffix is None or not suffix.search(name):
+        return None
+    base = suffix.sub("", name)
+    found = [port for port in ports if suffix.search(port) and suffix.sub("", port) == base]
+    return found[0] if len(found) == 1 else None
+
+
+def _find_port(midi: Any, port: str) -> tuple[int, str]:
+    """The index and current name of the port ``port`` stands for among ``midi``'s ports.
 
     Raises:
-        OSError: No port has this exact name (the Device is unplugged or renamed).
+        OSError: No port matches (the Device is unplugged or renamed).
     """
-    ports: Sequence[str] = midi.get_ports()
-    if port not in ports:
+    ports = list(midi.get_ports())
+    found = match_port(port, ports, PORT_SUFFIX)
+    if found is None:
         midi.delete()
         raise OSError(f"no MIDI port '{port}'")
-    return list(ports).index(port)
+    return ports.index(found), found
 
 
 def _port_names(cls: Any) -> list[str]:
