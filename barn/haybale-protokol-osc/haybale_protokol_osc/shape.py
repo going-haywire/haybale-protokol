@@ -25,8 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from haywire.barn.builtin.types.color import ColorStr
-from haywire.core.settings.types import Mat3, Mat4, Vec2f, Vec2i, Vec3f, Vec3i, Vec4f, Vec4i
+from haywire.api import ColorStr, Mat3, Mat4, Vec2f, Vec2i, Vec3f, Vec3i, Vec4f, Vec4i
 
 INT32 = (-(2**31), 2**31 - 1)
 INT64 = (-(2**63), 2**63 - 1)

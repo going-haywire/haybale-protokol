@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from haywire.core.state.base import AppState
-from haywire.core.state.decorator import state
+from haywire.api.workbench import AppState, get_library_state_container, state
 
 from haybale_protokol.states.protokol_state import ProtokolState
 from haybale_protokol_midi.driver import MidiDriver
@@ -25,6 +24,4 @@ class MidiState(AppState):
 
 
 def _protokol() -> ProtokolState | None:
-    from haywire.core.di.context import get_library_state_container
-
     return get_library_state_container().get(ProtokolState)

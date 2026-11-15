@@ -118,7 +118,7 @@ def get_protokol_state() -> ProtokolState:
     Raises:
         RuntimeError: haybale-protokol is not enabled.
     """
-    from haywire.core.di.context import get_library_state_container
+    from haywire.api.workbench import get_library_state_container
 
     state = get_library_state_container().get(ProtokolState)
     if state is None:

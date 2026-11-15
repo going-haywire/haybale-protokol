@@ -6,9 +6,17 @@ import logging
 from functools import partial
 from typing import Any
 
-from haywire.core.execution.execution_context import ExecutionContext
-from haywire.core.node import BaseNode, NodeType, node
-from haywire.core.settings import bag
+from haywire.api import (
+    EXEC,
+    INT,
+    STRING,
+    BaseNode,
+    ExecutionContext,
+    NodeType,
+    SelectWidget,
+    bag,
+    node,
+)
 
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
@@ -83,9 +91,6 @@ class MidiReceiveNode(BaseNode):
     dispatch = bag(ReceiveDispatchSettings)
 
     def init(self) -> None:
-        from haywire.barn.builtin.types import EXEC, INT, STRING
-        from haywire.barn.builtin.widgets import SelectWidget
-
         self.add(
             STRING.as_config(
                 "gate",
@@ -143,8 +148,7 @@ class MidiReceiveNode(BaseNode):
         self._subscribe()
 
     def _add_filter_outlets(self, kind: str, channel: int, number: int) -> None:
-        from haywire.barn.builtin import types as builtin
-        from haywire.barn.builtin.types import STRING
+        import haywire.api as builtin
 
         from haybale_core.types.specs import BYTES
 

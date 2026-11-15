@@ -26,6 +26,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Decide what to publish
         id: plan
+        env:
+          # Repository variable: distribution names to leave out of this run, comma-separated.
+          # Used while a library still waits for its PyPI pending publisher.
+          PYPI_SKIP: ${{ vars.PYPI_SKIP }}
         run: python3 .github/publish_plan.py
 
   build:

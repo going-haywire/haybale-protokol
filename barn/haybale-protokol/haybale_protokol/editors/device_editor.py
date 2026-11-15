@@ -9,13 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from haywire.core.access import AccessTier
-from haywire.core.session.context import SessionContext
-from haywire.core.session.handlers import react_on
-from haywire.ui import elements as hui
-from haywire.ui.editor.base import BaseEditor
-from haywire.ui.editor.decorator import editor
-from haywire.ui.editor.identity import SlotName
+from haywire.api.workbench import AccessTier, BaseEditor, SessionContext, SlotName, editor, hui, react_on
 from nicegui import ui
 
 from haybale_protokol.devices import Device

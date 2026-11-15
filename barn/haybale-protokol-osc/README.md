@@ -51,7 +51,17 @@ The Arg shape and the pins follow each other: typing the shape rebuilds the pins
 growing, unplugging (a grown pin) or reordering pins rewrites the shape.
 
 <!-- marketstall:share-url:start -->
-*Subscribe URL not yet published — push this repo to a git remote, then run `uv run --frozen haywire share --bump patch`.*
+Always the latest (tracks the current branch):
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/master/marketstall.toml
+```
+
+Frozen to this version:
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/v0.0.4/marketstall.toml
+```
 <!-- marketstall:share-url:end -->
 
 OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes

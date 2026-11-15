@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from haywire.barn.builtin.types import BOOL
-from haywire.core.settings import NodeSettings, Promotable, setting
+from haywire.api import BOOL, NodeSettings, Promotable, setting
 
 
 class SendSettings(NodeSettings):

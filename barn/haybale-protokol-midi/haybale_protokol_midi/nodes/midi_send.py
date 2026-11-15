@@ -5,9 +5,17 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from haywire.core.execution.execution_context import ExecutionContext
-from haywire.core.node import BaseNode, NodeType, node
-from haywire.core.settings import bag
+from haywire.api import (
+    EXEC,
+    INT,
+    STRING,
+    BaseNode,
+    ExecutionContext,
+    NodeType,
+    SelectWidget,
+    bag,
+    node,
+)
 
 from haybale_protokol.gate_names import gate_names
 from haybale_protokol.gate_sender import GateSender
@@ -75,9 +83,6 @@ class MidiSendNode(BaseNode):
     sending = bag(SendSettings)
 
     def init(self) -> None:
-        from haywire.barn.builtin.types import EXEC, INT, STRING
-        from haywire.barn.builtin.widgets import SelectWidget
-
         self.add(
             STRING.as_config(
                 "gate",
@@ -128,7 +133,7 @@ class MidiSendNode(BaseNode):
             self._add_inlets(kind, channel, number)
 
     def _add_inlets(self, kind: str, channel: int, number: int) -> None:
-        from haywire.barn.builtin import types as builtin
+        import haywire.api as builtin
 
         from haybale_core.types.specs import BYTES
 

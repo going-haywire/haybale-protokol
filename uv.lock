@@ -619,40 +619,35 @@ wheels = [
 
 [[package]]
 name = "haybale-core"
-version = "0.4.2"
-source = { editable = "../haywire-repo/barn/haybale-core" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "haywire-core" },
     { name = "nicegui" },
     { name = "typing-extensions" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "nicegui", specifier = ">=3.18.0" },
-    { name = "typing-extensions" },
+sdist = { url = "https://files.pythonhosted.org/packages/6e/dc/55625181038ef41bf56f125380d5d122e8d3baf338a6d0eb775c87220939/haybale_core-0.5.0.tar.gz", hash = "sha256:8d844f1e3b41f195a2b833bfcf9ac2c190f6828700a26dfbb32c1c7f238711c5", size = 50979, upload-time = "2026-11-15T16:58:59.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/58/aab57d1a18ad4b4ad16a90e94e94986ab80dd6f5b651c496deb32f47a6e0/haybale_core-0.5.0-py3-none-any.whl", hash = "sha256:cf28c54ff208f1eb8747995488d0bf4ce31ffc3ae19344541afa8c1244cccb02", size = 89869, upload-time = "2026-11-15T16:58:58.217Z" },
 ]
 
 [[package]]
 name = "haybale-graph-editor"
-version = "0.4.2"
-source = { editable = "../haywire-repo/barn/haybale-graph-editor" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "haywire-core" },
     { name = "nicegui" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "nicegui", specifier = ">=3.18.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/ed/6d/ac48737640269d98f28837c3535c114d6f4e02ec77eb97acdda1b1bcb5a6/haybale_graph_editor-0.5.0.tar.gz", hash = "sha256:9c4c9b871499b8400412200bd674ca6fd55e2f6d59f67c02d74bf909b8769cb6", size = 215647, upload-time = "2026-11-15T16:59:10.478Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/43/79ff26f24bc042c62c735f0869f9d1a08cb4cf43285085e03eabac8ccfd5/haybale_graph_editor-0.5.0-py3-none-any.whl", hash = "sha256:02c9ee79525b208011685defa2058f69a77de6bfdf92b3de870efd8477891733", size = 313839, upload-time = "2026-11-15T16:59:09.185Z" },
 ]
 
 [[package]]
 name = "haybale-haystack"
-version = "0.4.2"
-source = { editable = "../haywire-repo/barn/haybale-haystack" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "haybale-graph-editor" },
     { name = "haybale-studio" },
@@ -660,45 +655,42 @@ dependencies = [
     { name = "nicegui" },
     { name = "toml" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "haybale-graph-editor", editable = "../haywire-repo/barn/haybale-graph-editor" },
-    { name = "haybale-studio", editable = "../haywire-repo/barn/haybale-studio" },
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "nicegui", specifier = ">=3.18.0" },
-    { name = "toml", specifier = ">=0.10.2" },
+sdist = { url = "https://files.pythonhosted.org/packages/27/4c/ee775ac295d6c6776be5b89ae36cbe073c71b291f53fbd759143cf5229dc/haybale_haystack-0.5.0.tar.gz", hash = "sha256:a76ee46b2a57f1ecf0d4e501a0d862e75afbd98de74c3366726833a91663c4e1", size = 40817, upload-time = "2026-11-15T16:59:13.291Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/c2/ff7a01a39a92ea01841c9eee9adbc43b74261569cdb29fcb0a55d2da0032/haybale_haystack-0.5.0-py3-none-any.whl", hash = "sha256:c8ef1f3338d9e17269bd8c87b121c1b82d096815f6300359faaff55c5d0f7dfa", size = 55597, upload-time = "2026-11-15T16:59:12.342Z" },
 ]
 
 [[package]]
 name = "haybale-marketplace"
-version = "0.4.2"
-source = { editable = "../haywire-repo/barn/haybale-marketplace" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "haybale-studio" },
     { name = "haywire-core" },
     { name = "nicegui" },
     { name = "packaging" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "haybale-studio", editable = "../haywire-repo/barn/haybale-studio" },
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "nicegui", specifier = ">=3.18.0" },
-    { name = "packaging" },
+sdist = { url = "https://files.pythonhosted.org/packages/0e/6c/4f8fa32f26d9380d86af2757a8ab1ba58299a7424607d15586cdc2cc2954/haybale_marketplace-0.5.0.tar.gz", hash = "sha256:33de5a81eefc77ffc93cf2c7bd891143bc5091e3fa46fe9e3b99fd60e33e0684", size = 86662, upload-time = "2026-11-15T16:59:04.815Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/61/23d3dc57b226e7660674ffb127c706b20bcc4266c089d0f92a8824a3f088/haybale_marketplace-0.5.0-py3-none-any.whl", hash = "sha256:76fe3bc2f9e3bd427fea003bf19b7e912fed059365548e489bcb89ad49ed2f4a", size = 115929, upload-time = "2026-11-15T16:59:03.585Z" },
 ]
 
 [[package]]
 name = "haybale-protokol"
-version = "0.0.1"
+version = "0.0.4"
 source = { editable = "barn/haybale-protokol" }
 dependencies = [
     { name = "haywire-core" },
+    { name = "nicegui" },
+    { name = "tomlkit" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" }]
+requires-dist = [
+    { name = "haywire-core", specifier = ">=0.5.1" },
+    { name = "nicegui" },
+    { name = "tomlkit" },
+]
 
 [[package]]
 name = "haybale-protokol-dev"
@@ -726,15 +718,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "haybale-core", editable = "../haywire-repo/barn/haybale-core" },
-    { name = "haybale-graph-editor", editable = "../haywire-repo/barn/haybale-graph-editor" },
-    { name = "haybale-haystack", editable = "../haywire-repo/barn/haybale-haystack" },
-    { name = "haybale-marketplace", editable = "../haywire-repo/barn/haybale-marketplace" },
+    { name = "haybale-core", specifier = ">=0.4.2" },
+    { name = "haybale-graph-editor", specifier = ">=0.4.2" },
+    { name = "haybale-haystack", specifier = ">=0.4.2" },
+    { name = "haybale-marketplace", specifier = ">=0.4.2" },
     { name = "haybale-protokol", editable = "barn/haybale-protokol" },
     { name = "haybale-protokol-midi", editable = "barn/haybale-protokol-midi" },
     { name = "haybale-protokol-osc", editable = "barn/haybale-protokol-osc" },
-    { name = "haybale-studio", editable = "../haywire-repo/barn/haybale-studio" },
-    { name = "haywire-studio", editable = "../haywire-repo/packages/haywire-studio" },
+    { name = "haybale-studio", specifier = ">=0.4.2" },
+    { name = "haywire-studio", specifier = ">=0.4.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -759,16 +751,16 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "haybale-core", editable = "../haywire-repo/barn/haybale-core" },
+    { name = "haybale-core", specifier = ">=0.4.2" },
     { name = "haybale-protokol", editable = "barn/haybale-protokol" },
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
+    { name = "haywire-core", specifier = ">=0.5.1" },
     { name = "mido", specifier = "==1.3.3" },
     { name = "python-rtmidi", specifier = "==1.5.8" },
 ]
 
 [[package]]
 name = "haybale-protokol-osc"
-version = "0.0.1"
+version = "0.0.4"
 source = { editable = "barn/haybale-protokol-osc" }
 dependencies = [
     { name = "haybale-core" },
@@ -779,33 +771,30 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "haybale-core", editable = "../haywire-repo/barn/haybale-core" },
+    { name = "haybale-core", specifier = ">=0.4.2" },
     { name = "haybale-protokol", editable = "barn/haybale-protokol" },
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
+    { name = "haywire-core", specifier = ">=0.5.1" },
     { name = "python-osc", specifier = "==1.10.2" },
 ]
 
 [[package]]
 name = "haybale-studio"
-version = "0.4.2"
-source = { editable = "../haywire-repo/barn/haybale-studio" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "haywire-core" },
     { name = "haywire-studio" },
     { name = "nicegui" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "haywire-studio", editable = "../haywire-repo/packages/haywire-studio" },
-    { name = "nicegui", specifier = ">=3.18.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/04/d9/7a0ca8954e36213a1498d1657b1ddec01b22755307dc61408568d7e800ad/haybale_studio-0.5.0.tar.gz", hash = "sha256:d073852f36eb44e756fd2a4a33a1746ef8d879b59d26b6a745a216b0101afa2c", size = 95156, upload-time = "2026-11-15T16:59:02.014Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/49/705c4fbc00269cefa66e516eead0c1f0cfe38e9f43474da4dbb5720f564b/haybale_studio-0.5.0-py3-none-any.whl", hash = "sha256:d971beef68a6b8fcdfe7ef63b836ab7c53fbbb02cc6a9d931c603b169a0425ef", size = 142377, upload-time = "2026-11-15T16:59:00.745Z" },
 ]
 
 [[package]]
 name = "haywire-core"
-version = "0.4.2"
-source = { editable = "../haywire-repo/packages/haywire-core" }
+version = "0.5.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cattrs" },
@@ -820,27 +809,15 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchdog" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = "==25.4.0" },
-    { name = "cattrs", specifier = "==25.3.0" },
-    { name = "fastapi" },
-    { name = "injector", specifier = ">=0.22.0" },
-    { name = "markdown2", specifier = ">=2.5" },
-    { name = "nicegui", specifier = ">=3.18.0" },
-    { name = "packaging" },
-    { name = "pygments", specifier = ">=2.18" },
-    { name = "toml", specifier = ">=0.10.2" },
-    { name = "tomlkit", specifier = ">=0.13" },
-    { name = "typing-extensions" },
-    { name = "watchdog", specifier = ">=6.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/f4/28/eb8fcb4d4d497a13083a7c6c9c8cee538b066bc71ab9e1d079b05303df25/haywire_core-0.5.1.tar.gz", hash = "sha256:60d4174393bb36b0db4da73ea2a2f74e49380cb8d542ab6513aea4eb5b948bc8", size = 1711401, upload-time = "2026-11-15T18:33:58.118Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/09/46467fdb51483d7e60a571d74be2e13a5788d79482dff44ff6fabee61ab2/haywire_core-0.5.1-py3-none-any.whl", hash = "sha256:e5cc94d3dd72031a74e90cd435775d030e02b97acfb9a2328a1a6fa4c70791bb", size = 2910728, upload-time = "2026-11-15T18:33:56.862Z" },
 ]
 
 [[package]]
 name = "haywire-studio"
-version = "0.4.2"
-source = { editable = "../haywire-repo/packages/haywire-studio" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
@@ -851,17 +828,9 @@ dependencies = [
     { name = "psutil" },
     { name = "toml" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=42" },
-    { name = "fastapi" },
-    { name = "haywire-core", editable = "../haywire-repo/packages/haywire-core" },
-    { name = "jedi", specifier = ">=0.19" },
-    { name = "mcp", specifier = ">=1.28,<2" },
-    { name = "nicegui", specifier = ">=3.18.0" },
-    { name = "psutil" },
-    { name = "toml", specifier = ">=0.10.2" },
+sdist = { url = "https://files.pythonhosted.org/packages/e8/1a/83ddb3e109c08973a19d0310590e44f2a0515c98ad3de19bec5f91f015ce/haywire_studio-0.5.0.tar.gz", hash = "sha256:6b608c20075bd9bd55e8d1e611ce657af83314fd87bcb78e635adcf57ea19591", size = 125268, upload-time = "2026-11-15T16:58:56.342Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/1f/6660c51f34464bf809bfd5e7c82622de491477a779ed4fe69b53192e7398/haywire_studio-0.5.0-py3-none-any.whl", hash = "sha256:0c6f82efe60533a4a2cb6c4c8229fce59776291082f192f812236bcd70330895", size = 159061, upload-time = "2026-11-15T16:58:55.041Z" },
 ]
 
 [[package]]

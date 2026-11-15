@@ -9,8 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from haywire.core.state.base import AppState
-from haywire.core.state.decorator import state
+from haywire.api import get_workspace_root
+from haywire.api.workbench import AppState, state
 
 from haybale_protokol.devices import (
     Device,
@@ -333,8 +333,6 @@ class ProtokolState(AppState):
 
     def _project_root(self) -> Path:
         if self.project_root is None:
-            from haywire.core.di.context import get_workspace_root
-
             self.project_root = get_workspace_root()
         return self.project_root
 

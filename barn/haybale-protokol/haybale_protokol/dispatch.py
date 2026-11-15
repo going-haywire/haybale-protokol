@@ -7,10 +7,7 @@ change, so the defaults are an "Auto" choice resolved by kind, not fixed per cla
 
 from __future__ import annotations
 
-from haywire.barn.builtin.types import CHOICES, INT
-from haywire.core.execution import QueueMode
-from haywire.core.execution.event_source import CallbackEvent
-from haywire.core.settings import NodeSettings, Promotable, setting
+from haywire.api import CHOICES, INT, CallbackEvent, NodeSettings, Promotable, QueueMode, setting
 
 AUTO = "Auto (by message kind)"
 BLOCK = "Block (every message)"

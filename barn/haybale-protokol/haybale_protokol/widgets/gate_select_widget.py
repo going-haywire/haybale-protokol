@@ -5,11 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from haywire.core.access import LevelMode
-from haywire.ui.access_stamp import stamp_requires
-from haywire.ui.widget.base import BaseWidget
-from haywire.ui.widget.converters import PrimitiveUnwrappingConverter
-from haywire.ui.widget.decorator import widget
+from haywire.api.workbench import LevelMode, get_library_state_container, stamp_requires
+from haywire.api import BaseWidget, PrimitiveUnwrappingConverter, widget
 from nicegui import ui
 
 from haybale_protokol.gate_names import gate_names, join_gate_names
@@ -155,7 +152,6 @@ class GateSelectWidget(BaseWidget):
 
 def _state() -> ProtokolState | None:
     """The app's ProtokolState; ``None`` while haybale-protokol is not enabled."""
-    from haywire.core.di.context import get_library_state_container
 
     try:
         return get_library_state_container().get(ProtokolState)
