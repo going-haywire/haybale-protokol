@@ -686,7 +686,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "haywire-core", specifier = ">=0.5.0" },
+    { name = "haywire-core", specifier = ">=0.5.1" },
     { name = "nicegui" },
     { name = "tomlkit" },
 ]
@@ -749,7 +749,7 @@ dependencies = [
 requires-dist = [
     { name = "haybale-core", specifier = ">=0.4.2" },
     { name = "haybale-protokol", editable = "barn/haybale-protokol" },
-    { name = "haywire-core", specifier = ">=0.5.0" },
+    { name = "haywire-core", specifier = ">=0.5.1" },
     { name = "python-osc", specifier = "==1.10.2" },
 ]
 
@@ -769,7 +769,7 @@ wheels = [
 
 [[package]]
 name = "haywire-core"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -785,9 +785,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/b7/7abd3e3d1cdf41f71a5afa7bef858a067848c21769d423f0afbbdf03615d/haywire_core-0.5.0.tar.gz", hash = "sha256:d83e7537bcaba0230d5fa6a777dba9496bbf4e00d592bd53f9ff603c407a06aa", size = 1711254, upload-time = "2026-11-15T16:58:52.158Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/28/eb8fcb4d4d497a13083a7c6c9c8cee538b066bc71ab9e1d079b05303df25/haywire_core-0.5.1.tar.gz", hash = "sha256:60d4174393bb36b0db4da73ea2a2f74e49380cb8d542ab6513aea4eb5b948bc8", size = 1711401, upload-time = "2026-11-15T18:33:58.118Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/f3/aa2b9b483c7580c9763044af6f3021470f566bf11d8c7d730252965132b8/haywire_core-0.5.0-py3-none-any.whl", hash = "sha256:76a6817105e442e6b0819531494a67001d72440611930c46c818657ac65c275a", size = 2910576, upload-time = "2026-11-15T16:58:50.18Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/09/46467fdb51483d7e60a571d74be2e13a5788d79482dff44ff6fabee61ab2/haywire_core-0.5.1-py3-none-any.whl", hash = "sha256:e5cc94d3dd72031a74e90cd435775d030e02b97acfb9a2328a1a6fa4c70791bb", size = 2910728, upload-time = "2026-11-15T18:33:56.862Z" },
 ]
 
 [[package]]

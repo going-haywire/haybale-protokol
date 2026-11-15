@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from haywire.api import get_workspace_root
 from haywire.api.workbench import AppState, state
 
 from haybale_protokol.devices import (
@@ -346,8 +347,6 @@ class ProtokolState(AppState):
 
     def _project_root(self) -> Path:
         if self.project_root is None:
-            from haywire.core.di.context import get_workspace_root  # noqa: TID251 -- not in the Author API yet, reported (issue #3)
-
             self.project_root = get_workspace_root()
         return self.project_root
 
