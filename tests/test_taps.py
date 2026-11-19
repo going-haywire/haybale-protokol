@@ -22,8 +22,11 @@ def setup(tmp_path: Path) -> Iterator[tuple[ProtokolState, FakeDriver]]:
     state.register_driver(driver)
     save_gates(
         gate_file_path(tmp_path),
-        [Gate("in", "fake", "in"), Gate("out", "fake", "out", options={"port": 2}),
-         Gate("both", "fake", "two-way", options={"port": 3})],
+        [
+            Gate("in", "fake", "in"),
+            Gate("out", "fake", "out", options={"port": 2}),
+            Gate("both", "fake", "two-way", options={"port": 3}),
+        ],
     )
     yield state, driver
     state.on_disable()
