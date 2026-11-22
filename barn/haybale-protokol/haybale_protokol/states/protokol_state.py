@@ -564,6 +564,7 @@ class ProtokolState(AppState):
             self._relist(driver)  # the open failed: check the listing is not just out of date
         if device is None or self._device_present(driver, device) is not False:
             self._open_failures[gate.name] = (gate.protocol, reason)
+            self._changed()  # its health is now "error": badges and editors show it
         return reason
 
     def _relist(self, driver: ProtocolDriver) -> None:

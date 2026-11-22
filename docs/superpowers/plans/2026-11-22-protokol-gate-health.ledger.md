@@ -14,3 +14,7 @@ Task 3: Ruling: each reconnect attempt holds a per-binding lock and re-checks "s
 Task 3: Ruling: a successful open while the cached listing says the Device is absent, or a failed open while it says present, re-lists that driver at once — the suite's shared state showed a stale cache making a binding close its own working Line — cost if wrong: one extra listing per contradicting open.
 Task 3: changed test: test_missing_device_status now expects "waiting for 'keys'" (the node waits for the Device, design §10.5) instead of "cannot open: no MIDI port …".
 Task 3: complete (tests: 624 passed x3; ruff, mypy clean). Real ALSA virtual ports: unplug/replug mid-run and start-unplugged both reconnect.
+Task 4: Ruling: the badge is a GateBadge object each node owns (start in post_init, refresh on the gate setting's on_change, in on_assembly and at the end of on_startup, stop in on_teardown) — core has on_teardown, so the weak listener is a fallback, not the mechanism — cost if wrong: none.
+Task 4: Ruling: a remembered open failure now emits _changed(), so a badge turns "error" as soon as a graph's start fails to open a port — cost if wrong: one extra signal per failed open.
+Task 4: note: a notification already under way when unwatch() runs may still call the listener once; GateBadge.refresh is harmless then (no wrapper → nothing).
+Task 4: complete (tests: 642 passed x2; ruff, mypy clean)

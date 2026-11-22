@@ -12,9 +12,10 @@ from haywire.api import (
     STRING,
     BaseNode,
     ExecutionContext,
-    NodeType,
     MenuWidget,
+    NodeType,
     NumberWidget,
+    StoreStrategy,
     bag,
     node,
 )
@@ -22,6 +23,7 @@ from haywire.api import (
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
 from haybale_protokol.gate_names import gate_names, named_status
+from haybale_protokol.gate_warning import GateBadge
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, STREAM_KINDS
@@ -108,6 +110,7 @@ class MidiEventNode(BaseNode):
                 label="Gate",
                 description=GATE_HELP,
                 widget=GateMenuWidget.config(properties={"protocol": "midi", "direction": "in"}),
+                on_change="hb_gate_changed",
             )
         )
         self.add(
@@ -147,11 +150,14 @@ class MidiEventNode(BaseNode):
         self._add_filter_outlets("cc", 1, -1)
 
     def post_init(self) -> None:
+        self._gate_badge = GateBadge(self)
+        self._gate_badge.start()
         self._bindings: list[ReceiveBinding] = []
         self._subscribe()
         show_filter_problem(self, self._filter_problem())
 
     def on_assembly(self) -> tuple[bool, str | None]:
+        self._gate_badge.refresh()
         self._subscribe()
         show_filter_problem(self, self._filter_problem())
         return True, None
@@ -179,7 +185,7 @@ class MidiEventNode(BaseNode):
         for port_id, type_name in KIND_PINS.get(kind, ()):
             type_cls = BYTES if type_name == "BYTES" else getattr(builtin, type_name)
             self.add(type_cls.as_outlet(port_id, label=port_id.capitalize()))
-        self.add(STRING.as_outlet("status", label="Status", default=""))
+        self.add(STRING.as_outlet("status", label="Status", default="", store_strategy=StoreStrategy.NEVER))
         self._order_rebuilt()
 
     def _order_rebuilt(self) -> None:
@@ -217,11 +223,21 @@ class MidiEventNode(BaseNode):
             for name in gate_names(str(self.value("gate") or ""))
         ]
         self.post_value("status", self._status())
+        self._gate_badge.refresh()
 
     def on_shutdown(self, context: ExecutionContext) -> None:
         for binding in self._bindings:
             binding.close()
         self._bindings = []
+
+    def on_teardown(self) -> None:
+        badge = getattr(self, "_gate_badge", None)  # absent when post_init never ran
+        if badge is not None:
+            badge.stop()
+
+    def hb_gate_changed(self, *_args: object) -> None:
+        """The gate setting changed: show its gates' health at once."""
+        self._gate_badge.refresh()
 
     def worker(self, context: ExecutionContext) -> str | None:
         payload = context.trigger.payload if context.trigger else None

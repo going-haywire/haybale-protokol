@@ -11,15 +11,17 @@ from haywire.api import (
     STRING,
     BaseNode,
     ExecutionContext,
-    NodeType,
     MenuWidget,
+    NodeType,
     NumberWidget,
+    StoreStrategy,
     bag,
     node,
 )
 
 from haybale_protokol.gate_names import gate_names
 from haybale_protokol.gate_sender import GateSender
+from haybale_protokol.gate_warning import GateBadge
 from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.sending import SendSettings
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
@@ -99,6 +101,7 @@ class SendMidiNode(BaseNode):
                 label="Gate",
                 description=GATE_HELP,
                 widget=GateMenuWidget.config(properties={"protocol": "midi", "direction": "out"}),
+                on_change="hb_gate_changed",
             )
         )
         self.add(
@@ -133,14 +136,17 @@ class SendMidiNode(BaseNode):
         )
         self.add(EXEC.as_inlet("exec", label="Send"))
         self.add(EXEC.as_outlet("next", label="Next"))
-        self.add(STRING.as_outlet("status", label="Status", default=""))
+        self.add(STRING.as_outlet("status", label="Status", default="", store_strategy=StoreStrategy.NEVER))
         self._add_inlets("cc", 1, -1)
 
     def post_init(self) -> None:
+        self._gate_badge = GateBadge(self)
+        self._gate_badge.start()
         self._sender = GateSender()
         self._show_filter_problem()
 
     def on_assembly(self) -> tuple[bool, str | None]:
+        self._gate_badge.refresh()
         self._show_filter_problem()
         return True, None
 
@@ -186,9 +192,19 @@ class SendMidiNode(BaseNode):
     def on_startup(self, context: ExecutionContext) -> None:
         self._sender.open(get_protokol_state(), gate_names(str(self.value("gate") or "")))
         self.post_value("status", self._sender.status())
+        self._gate_badge.refresh()
 
     def on_shutdown(self, context: ExecutionContext) -> None:
         self._sender.close()
+
+    def on_teardown(self) -> None:
+        badge = getattr(self, "_gate_badge", None)  # absent when post_init never ran
+        if badge is not None:
+            badge.stop()
+
+    def hb_gate_changed(self, *_args: object) -> None:
+        """The gate setting changed: show its gates' health at once."""
+        self._gate_badge.refresh()
 
     def worker(self, context: ExecutionContext) -> str | None:
         if self._sender.active:
