@@ -13,6 +13,7 @@ from haywire.api import (
     ExecutionContext,
     NodeType,
     MenuWidget,
+    NumberWidget,
     bag,
     node,
 )
@@ -24,6 +25,8 @@ from haybale_protokol.sending import SendSettings
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, decode, encode
 from haybale_protokol_midi.midi_pins import (
+    CHANNEL_RANGE,
+    NUMBER_RANGE,
     KIND_PINS,
     NUMBER_PIN,
     filter_problem,
@@ -114,12 +117,18 @@ class SendMidiNode(BaseNode):
                 default=1,
                 label="Channel",
                 description=CHANNEL_HELP,
+                widget=NumberWidget.config(properties=CHANNEL_RANGE),
                 on_change="hb_rebuild",
             )
         )
         self.add(
             INT.as_config(
-                "filter_number", default=-1, label="Number", description=NUMBER_HELP, on_change="hb_rebuild"
+                "filter_number",
+                default=-1,
+                label="Number",
+                description=NUMBER_HELP,
+                widget=NumberWidget.config(properties=NUMBER_RANGE),
+                on_change="hb_rebuild",
             )
         )
         self.add(EXEC.as_inlet("exec", label="Send"))

@@ -39,6 +39,12 @@ def number_filter(value: Any) -> int:
     return -1 if value is None else int(value)
 
 
+#: The Channel and Number fields' limits: 0 and −1 are the open choice (any, or from an inlet).
+#: The field clamps to them; ``filter_problem`` still badges a value that got past the field
+#: (a graph saved before, an agent through Farmhand, a promoted setting fed by a wire).
+CHANNEL_RANGE = {"min": 0, "max": 16}
+NUMBER_RANGE = {"min": -1, "max": 127}
+
 #: The ``NodeWarning.kind`` of a filter no message can pass (MIDI Event) or no message fits (Send MIDI).
 FILTER_WARNING = "protokol-midi-filter"
 

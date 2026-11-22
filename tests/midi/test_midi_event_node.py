@@ -200,6 +200,16 @@ def test_a_saved_impossible_filter_shows_the_badge_after_reload(graph: BaseGraph
     ]
 
 
+@pytest.mark.parametrize("registry_key", ["event", "send"])
+def test_channel_and_number_fields_are_limited(graph: BaseGraph, registry_key: str) -> None:
+    from haybale_protokol_midi.nodes.send_midi import SendMidiNode
+
+    cls = MidiEventNode if registry_key == "event" else SendMidiNode
+    node = make_node(graph, cls.class_identity.registry_key).node
+    assert node.ports["filter_channel"].widget_config["properties"] == {"min": 0, "max": 16}
+    assert node.ports["filter_number"].widget_config["properties"] == {"min": -1, "max": 127}
+
+
 def test_save_reload_keeps_ports(graph: BaseGraph) -> None:
     wrapper = _receive(graph, kind="note", channel=0, number=-1)
     loaded = BaseGraph(filestem="reload", validation_scheduler=SyncScheduler())
