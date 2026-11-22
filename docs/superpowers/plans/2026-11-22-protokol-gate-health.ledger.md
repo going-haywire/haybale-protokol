@@ -18,3 +18,6 @@ Task 4: Ruling: the badge is a GateBadge object each node owns (start in post_in
 Task 4: Ruling: a remembered open failure now emits _changed(), so a badge turns "error" as soon as a graph's start fails to open a port — cost if wrong: one extra signal per failed open.
 Task 4: note: a notification already under way when unwatch() runs may still call the listener once; GateBadge.refresh is harmless then (no wrapper → nothing).
 Task 4: complete (tests: 642 passed x2; ruff, mypy clean)
+Task 5: Ruling: the chip follows health with two tones only (success = healthy, danger = anything else); the old "warning" for unbound / protocol not installed becomes danger, as the owner asked for red — cost if wrong: unbound and broken look alike on the chip (the badge says which).
+Task 5: note: the widget does not subscribe to ProtokolChanged; it is recoloured when the node card redraws, which replace_warnings triggers exactly when the gate badge changes — to confirm in the live check.
+Task 5: complete (tests: 643 passed; ruff, mypy clean)

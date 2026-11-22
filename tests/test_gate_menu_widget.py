@@ -47,7 +47,7 @@ from haybale_protokol.widgets.gate_menu_widget import (  # noqa: E402
     gate_tone,
     select_options,
 )
-from tests.fakes import FakeDriver  # noqa: E402
+from tests.fakes import FakeDeviceDriver, FakeDriver  # noqa: E402
 
 
 def _state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProtokolState:
@@ -76,7 +76,7 @@ def _state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProtokolState:
         ("ok", "success"),
         ("both", "success"),
         ("desk", "success"),
-        ("pad", "warning"),
+        ("pad", "danger"),
         ("out", "danger"),
         ("other", "danger"),
         ("nope", "danger"),
@@ -86,10 +86,30 @@ def test_gate_tone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, t
     assert gate_tone(_state(tmp_path, monkeypatch), name, "fake", "in") == tone
 
 
-def test_protocol_not_installed_is_a_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_protocol_not_installed_is_danger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state = _state(tmp_path, monkeypatch)
     state.unregister_driver("fake")
-    assert gate_tone(state, "ok", "fake", "in") == "warning"
+    assert gate_tone(state, "ok", "fake", "in") == "danger"
+
+
+def test_not_plugged_in_is_danger_and_replug_is_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A gate that does not work now is red, not green (design §10.3; the owner's live check)."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    state = ProtokolState()
+    state.project_root = tmp_path
+    driver = FakeDeviceDriver(present=[])
+    state.register_driver(driver)
+    save_gates(gate_file_path(tmp_path), [Gate("grid", "fakedev", "in", device="grid")])
+    save_devices(device_list_path(), [Device("grid", "fakedev", "Grid MIDI 1")])
+    try:
+        assert gate_tone(state, "grid", "fakedev", "in") == "danger"
+        driver.present = ["Grid MIDI 1"]
+        state.refresh_devices()
+        assert gate_tone(state, "grid", "fakedev", "in") == "success"
+    finally:
+        state.on_disable()
 
 
 def test_chip_template_reads_the_option_label() -> None:

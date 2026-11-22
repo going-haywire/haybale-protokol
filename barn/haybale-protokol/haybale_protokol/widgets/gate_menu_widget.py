@@ -58,18 +58,14 @@ def select_options(properties: dict[str, Any]) -> dict[str, Any]:
 def gate_tone(state: ProtokolState, name: str, protocol: str, direction: str) -> Tone:
     """How usable ``name`` is for a node of ``protocol`` that wants ``direction``.
 
-    ``success``: usable. ``warning``: right gate, but this machine cannot use it now (its protocol is
-    not installed, or its device is not in the Device list). ``danger``: no such gate, or one of
-    another protocol or direction.
+    ``success``: it works now (its health is ``working`` or ``closed``). ``danger``: no such gate,
+    one of another protocol or direction, or a gate that does not work now: unbound, its device not
+    plugged in, its protocol not installed, a failed open (``ProtokolState.health``).
     """
     gate = state.gates().get(name)
     if gate is None or gate.protocol != protocol or gate.direction not in (direction, "two-way"):
         return "danger"
-    if state.driver(gate.protocol) is None:
-        return "warning"
-    if gate.device is not None and gate.device not in state.devices():
-        return "warning"
-    return "success"
+    return "success" if state.health(gate).healthy else "danger"
 
 
 #: The gate name of a select option: NiceGUI hands Quasar ``{value, label}`` objects; a typed value
@@ -102,9 +98,9 @@ def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
 class GateMenuWidget(BaseWidget):
     """A select of gates; its behaviour is set by plain properties, as the port saves them.
 
-    Each chosen gate shows as a chip coloured by its state: success when usable, warning when this
-    machine cannot use it now (protocol not installed, device unbound), danger when there is no such
-    gate or it is of another protocol or direction. The select takes input only in edit mode.
+    Each chosen gate shows as a chip coloured by its state: success when it works now, danger when
+    it does not (``gate_tone``): no such gate, another protocol or direction, or its health is
+    unbound, not plugged in or error. The select takes input only in edit mode.
 
     Properties (``GateMenuWidget.config(properties={...})``):
 
