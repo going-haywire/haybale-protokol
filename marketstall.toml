@@ -4,11 +4,11 @@
 [[haybales]]
 name = "haybale-protokol"
 label = "Protokol"
-version = "0.0.6"
-require = "haywire-core>=0.5.1"
+version = "0.0.7"
+require = "haywire-core>=0.6.0"
 description = "Control protocols for graphs: gates, shared lines and the base for OSC, MIDI and gamepad"
 source = "pypi"
-install_spec = "haybale-protokol==0.0.6"
+install_spec = "haybale-protokol==0.0.7"
 tags = [ "osc", "midi", "gamepad", "control", "protocol",]
 on_reload = "none"
 origin = "https://github.com/going-haywire/haybale-protokol"
@@ -18,11 +18,11 @@ notes = "NOTES.md"
 [[haybales]]
 name = "haybale-protokol-midi"
 label = "Protokol MIDI"
-version = "0.0.6"
-require = "haywire-core>=0.5.1"
-description = "MIDI for haybale-protokol: Device gates, MIDI Receive and Send nodes"
+version = "0.0.7"
+require = "haywire-core>=0.6.0"
+description = "MIDI for haybale-protokol: Device gates, MIDI Event and Send MIDI nodes"
 source = "pypi"
-install_spec = "haybale-protokol-midi==0.0.6"
+install_spec = "haybale-protokol-midi==0.0.7"
 tags = [ "midi", "control", "protocol", "device",]
 on_reload = "none"
 linked_libraries = [ "haybale_protokol", "haybale_core",]
@@ -33,11 +33,11 @@ notes = "NOTES.md"
 [[haybales]]
 name = "haybale-protokol-osc"
 label = "Protokol OSC"
-version = "0.0.6"
-require = "haywire-core>=0.5.1"
-description = "OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes"
+version = "0.0.7"
+require = "haywire-core>=0.6.0"
+description = "OSC for haybale-protokol: UDP and TCP gates, OSC Event and Send OSC nodes"
 source = "pypi"
-install_spec = "haybale-protokol-osc==0.0.6"
+install_spec = "haybale-protokol-osc==0.0.7"
 tags = [ "osc", "control", "protocol", "network",]
 on_reload = "none"
 linked_libraries = [ "haybale_protokol", "haybale_core",]

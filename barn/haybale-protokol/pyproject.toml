@@ -6,7 +6,7 @@ description = "Control protocols for graphs: gates, shared lines and the base fo
 keywords = ["osc", "midi", "gamepad", "control", "protocol"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
-version = "0.0.6"
+version = "0.0.7"
 
 # ── authored here ────────────────────────────────────────────────────────────
 requires-python = ">=3.12"
