@@ -235,3 +235,22 @@ def test_auto_drops_only_for_one_controller_on_one_gate(graph: BaseGraph) -> Non
     node.ports["gate"].set_value("a, b")
     node.on_assembly()
     assert node.event_subscription.queue_mode is QueueMode.BLOCK
+
+
+@needs_virtual
+def test_status_follows_an_unplug_and_replug_while_running(graph: BaseGraph, tmp_path: Path) -> None:
+    """The status outlet says waiting, then listening again, though no message fires the node."""
+    source = Source()
+    _device(source)
+    wrapper = _receive(graph, kind="cc", channel=1, number=-1)
+    second: Source | None = None
+    try:
+        with protokol_project(tmp_path, Gate("keys", "midi", "in", device="keys")), running(graph):
+            assert wait_until(lambda: str(wrapper.node.value("status")) == "listening on keys")
+            source.close()
+            assert wait_until(lambda: str(wrapper.node.value("status")) == "waiting for 'keys'", timeout=5.0)
+            second = Source(source.port)
+            assert wait_until(lambda: str(wrapper.node.value("status")) == "listening on keys", timeout=5.0)
+    finally:
+        if second is not None:
+            second.close()

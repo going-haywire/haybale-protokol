@@ -42,6 +42,7 @@ class ReceiveBinding:
         start_value: bool,
         block: bool,
         capacity: int = DEFAULT_CAPACITY,
+        on_status: Callable[[], None] | None = None,
     ) -> None:
         self.gate_name = gate_name
         self.dropped = 0
@@ -58,6 +59,8 @@ class ReceiveBinding:
             self._thread = threading.Thread(target=self._forward, name=name, daemon=True)
             self._thread.start()
         self._state = state
+        self._on_status = on_status
+        """Called (on the watch thread) when ``status`` changes later: waiting, or listening again."""
         self._bind_lock = threading.Lock()
         """Guards ``_use``, ``_waiting`` and ``_reconnect`` between the node, the watch and a retry."""
         self._waiting = False
@@ -129,6 +132,7 @@ class ReceiveBinding:
                         self._use = None
                         self._wait_for_device()
                 use.release()
+                self._status_changed()
                 if unplugged:
                     # Close it, not just give it back: a port that went away never comes back to
                     # the same connection (ALSA drops it), so the replug must open a fresh Line.
@@ -159,6 +163,16 @@ class ReceiveBinding:
                     self._status = f"listening on {self.gate_name}"
             if not keep:
                 result.release()
+            else:
+                self._status_changed()
+
+    def _status_changed(self) -> None:
+        if self._on_status is None or self._closing:
+            return
+        try:
+            self._on_status()
+        except Exception:
+            logger.exception("status callback of gate %s failed", self.gate_name)
 
     def _on_message(self, message: Message) -> None:
         payload = self._accept(message)

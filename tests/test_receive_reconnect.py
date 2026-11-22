@@ -165,3 +165,28 @@ def test_unbound_does_not_retry(state: ProtokolState, driver: FakeDeviceDriver) 
         assert not binding.is_bound
     finally:
         binding.close()
+
+
+def test_on_status_is_called_when_the_binding_waits_and_listens_again(
+    state: ProtokolState, driver: FakeDeviceDriver
+) -> None:
+    """A waiting node never fires, so its status must be pushed when the binding's changes."""
+    seen: list[str] = []
+    holder: dict[str, ReceiveBinding] = {}
+    binding = ReceiveBinding(
+        state,
+        "grid-in",
+        lambda m: {"m": m},
+        lambda p: None,
+        start_value=False,
+        block=False,
+        on_status=lambda: seen.append(holder["b"].status),
+    )
+    holder["b"] = binding
+    try:
+        driver.present = []
+        assert _wait(lambda: seen[-1:] == ["waiting for 'Grid'"])
+        driver.present = [PORT]
+        assert _wait(lambda: seen[-1:] == ["listening on grid-in"])
+    finally:
+        binding.close()

@@ -219,6 +219,7 @@ class MidiEventNode(BaseNode):
                 fire,
                 start_value=start_value,
                 block=queue_mode.name == "BLOCK",
+                on_status=lambda: self.post_value("status", self._status()),
             )
             for name in gate_names(str(self.value("gate") or ""))
         ]

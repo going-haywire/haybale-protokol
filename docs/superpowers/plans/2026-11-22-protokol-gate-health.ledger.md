@@ -30,3 +30,8 @@ Task 7: Ruling: an unbound gate's view offers "Map device…" (ADMIN) itself, th
 Task 7: Ruling (fix to task 2): the MIDI listing probes are one rtmidi pair per process, not per driver — per-driver probes exhausted ALSA's client limit in the suite ("Cannot allocate memory") — cost if wrong: none.
 Task 7: not checked here: a saved workspace naming the removed editor — to watch in the live check (the studio restart).
 Task 7: complete (tests: 652 passed x2; ruff, mypy clean)
+Task 8: docs regenerated (haywire docs --all: 3 libraries clean). No saved workspace named the removed DeviceEditor.
+Live check (owner, 2026-11-22): 7 of 9 pass — icon dot, red row and greyed Monitor, divider and Device pane, node badge and red chip, start unplugged, plug in while running, unplug mid-run. Fail: replug mid-run ("takes about 10 s") and refresh ("does nothing").
+Live check finding: not ours — the kernel needs 11–32 s to enumerate the Grid on each replug (first USB handshake times out, error -110, on the ESP32-based Grid, vid 303a); until then no MIDI port exists, so refresh correctly finds none. Timing run: unplug → badge +0.69 s after the kernel's disconnect; kernel MIDI port → badge gone (reconnected) +0.57 s.
+Live check fix: the status outlet stayed "listening on Grid" while waiting (only startup and firing wrote it). ReceiveBinding gains on_status, called when it starts waiting and when it listens again; OSC Event and MIDI Event post their status from it. Test: test_status_follows_an_unplug_and_replug_while_running (real ALSA ports).
+Final: 654 passed x2; ruff, mypy clean.
