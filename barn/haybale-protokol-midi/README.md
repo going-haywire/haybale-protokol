@@ -2,7 +2,7 @@
 
 # Protokol MIDI
 
-MIDI 1.0 for Haywire, on top of `haybale-protokol`: a MIDI Receive node and a MIDI Send node,
+MIDI 1.0 for Haywire, on top of `haybale-protokol`: a MIDI Event node and a Send MIDI node,
 using gates from the project's `.haywire/protokol.toml` (see the Protokol notes for the file).
 
 ## Gates and Devices
@@ -46,11 +46,11 @@ controller, 0–127, or −1 for any). Their pins follow them:
 | transport | event, position | clock, start, continue, stop, songpos |
 | raw | bytes | every message as it is |
 
-A channel, note or controller pin appears when its filter is "any". On MIDI Receive, values (cc,
+A channel, note or controller pin appears when its filter is "any". On MIDI Event, values (cc,
 pitch bend, aftertouch) fire their last value when the graph starts. When the flow runs behind,
 a node listening to one controller on one channel and one gate keeps only the newest value;
 anything broader, and every event (notes, programs, transport), queues each message.
-MIDI Send sends on each control tick, or with **Only send changes** only when the message
+Send MIDI sends on each control tick, or with **Only send changes** only when the message
 differs from the last one a gate took. An out-of-range value is dropped and named in status.
 
 ## Monitor test messages
@@ -72,12 +72,12 @@ https://github.com/going-haywire/haybale-protokol/blob/v0.0.6/marketstall.toml
 ```
 <!-- marketstall:share-url:end -->
 
-MIDI for haybale-protokol: Device gates, MIDI Receive and Send nodes
+MIDI for haybale-protokol: Device gates, MIDI Event and Send MIDI nodes
 
 ## Nodes
 ### Protokol
-- **MIDI Receive** — Triggered for each MIDI message on its gates that passes its kind, channel and number
-- **MIDI Send** — Sends one MIDI message to its gates each time it runs
+- **MIDI Event** — Triggered for each MIDI message on its gates that passes its kind, channel and number
+- **Send MIDI** — Sends one MIDI message to its gates each time it runs
 
 ## States
 - **Protokol MIDI** — Registers the MIDI driver with Protokol

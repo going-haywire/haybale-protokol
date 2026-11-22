@@ -1,6 +1,6 @@
-# MIDI Send
+# Send MIDI
 
-`haybale-protokol-midi:node:MidiSendNode` · kind: node
+`haybale-protokol-midi:node:SendMidiNode` · kind: node
 
 Sends one MIDI message to its gates each time it runs
 
