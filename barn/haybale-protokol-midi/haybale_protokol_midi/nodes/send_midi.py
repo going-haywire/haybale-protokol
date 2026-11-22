@@ -23,7 +23,13 @@ from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.sending import SendSettings
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, decode, encode
-from haybale_protokol_midi.midi_pins import KIND_PINS, NUMBER_PIN, number_filter
+from haybale_protokol_midi.midi_pins import (
+    KIND_PINS,
+    NUMBER_PIN,
+    filter_problem,
+    number_filter,
+    show_filter_problem,
+)
 
 #: Display order of every inlet the filter can bring.
 _INLET_ORDER = (
@@ -123,6 +129,11 @@ class SendMidiNode(BaseNode):
 
     def post_init(self) -> None:
         self._sender = GateSender()
+        self._show_filter_problem()
+
+    def on_assembly(self) -> tuple[bool, str | None]:
+        self._show_filter_problem()
+        return True, None
 
     # -- ports -------------------------------------------------------------------
 
@@ -131,6 +142,12 @@ class SendMidiNode(BaseNode):
         kind, channel, number = self._filter()
         with self.rejig(include=_REBUILT):
             self._add_inlets(kind, channel, number)
+        self._show_filter_problem()
+
+    def _show_filter_problem(self) -> None:
+        """A fixed channel or number out of range would drop every message: badge it at once."""
+        kind, channel, number = self._filter()
+        show_filter_problem(self, filter_problem(kind, channel, number, open_word="from an inlet"))
 
     def _add_inlets(self, kind: str, channel: int, number: int) -> None:
         import haywire.api as builtin
