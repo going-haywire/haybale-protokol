@@ -11,7 +11,7 @@ version = "0.0.6"  # PEP 440, no "v" — canon here; pyproject.toml carries the 
 
 # ── display ───────────────────────────────────────────────────────────────
 label = "Protokol OSC"  # human display name
-description = "OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes"  # one line
+description = "OSC for haybale-protokol: UDP and TCP gates, OSC Event and Send OSC nodes"  # one line
 tags = ["osc", "control", "protocol", "network"]  # filter tags in the library browser
 
 # ── behaviour ─────────────────────────────────────────────────────────────

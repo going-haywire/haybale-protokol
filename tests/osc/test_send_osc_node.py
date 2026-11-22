@@ -1,4 +1,4 @@
-"""OSC Send: inlets become the arguments of one OSC message per run."""
+"""Send OSC: inlets become the arguments of one OSC message per run."""
 
 import re
 import socket
@@ -9,7 +9,7 @@ import pytest
 from pythonosc.osc_message import OscMessage
 
 from haybale_protokol.gates import Gate
-from haybale_protokol_osc.nodes.osc_send import OscSendNode
+from haybale_protokol_osc.nodes.send_osc import SendOscNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_edge, make_node
 from tests.osc.graphs import protokol_project, running, wait_until
@@ -20,7 +20,7 @@ _ARG = re.compile(r"arg_\d+")
 
 
 def _send_node(graph: Any, address: str = "/x", shape: str = "", gate: str = "out") -> Any:
-    wrapper = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0))
+    wrapper = make_node(graph, SendOscNode.class_identity.registry_key, position=(400, 0))
     wrapper.node.ports["gate"].set_value(gate)
     wrapper.node.ports["address"].set_value(address)
     if shape:
@@ -29,9 +29,9 @@ def _send_node(graph: Any, address: str = "/x", shape: str = "", gate: str = "ou
 
 
 def _begin_play(graph: Any, send: Any) -> Any:
-    from haybale_core.nodes.events.begin_play import BeginPlayNode
+    from haybale_core.nodes.events.begin_play_event import BeginPlayEventNode
 
-    begin = make_node(graph, BeginPlayNode.class_identity.registry_key)
+    begin = make_node(graph, BeginPlayEventNode.class_identity.registry_key)
     assert make_edge(graph, begin.node_id, "exec", send.node_id, "exec").state.is_valid()
     return begin
 

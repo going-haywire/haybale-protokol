@@ -3,7 +3,7 @@
 import pytest
 
 from haybale_protokol.gate_names import gate_names, join_gate_names
-from haybale_protokol.widgets.gate_select_widget import GateListConverter, merged_options
+from haybale_protokol.widgets.gate_menu_widget import GateListConverter, merged_options
 
 
 @pytest.mark.parametrize(
@@ -32,9 +32,9 @@ def test_selected_names_missing_from_options_are_kept() -> None:
 
 @pytest.mark.integration
 def test_widget_is_registered(library_system: object) -> None:
-    from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
+    from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 
-    assert GateSelectWidget.class_identity.registry_key == "haybale-protokol:widget:GateSelectWidget"
+    assert GateMenuWidget.class_identity.registry_key == "haybale-protokol:widget:GateMenuWidget"
 
 
 from pathlib import Path  # noqa: E402
@@ -42,7 +42,7 @@ from pathlib import Path  # noqa: E402
 from haybale_protokol.devices import Device, device_list_path, save_devices  # noqa: E402
 from haybale_protokol.gates import Gate, gate_file_path, save_gates  # noqa: E402
 from haybale_protokol.states.protokol_state import ProtokolState  # noqa: E402
-from haybale_protokol.widgets.gate_select_widget import (  # noqa: E402
+from haybale_protokol.widgets.gate_menu_widget import (  # noqa: E402
     chip_template,
     gate_tone,
     select_options,

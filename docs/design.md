@@ -272,5 +272,5 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
   gone (and again on redo), and `on_pin_restored(port_id, memento)` on undo, after the port
   and its edges are back. The OSC nodes remove or reinsert the token and return
   `[index, position, token, was_grown]` as the memento. They write the Arg shape with their
-  own rebuild suppressed (a hook must not change ports), and OSC Receive refreshes its decode
+  own rebuild suppressed (a hook must not change ports), and OSC Event refreshes its decode
   tokens under its lock. Argument pin labels are the bare token, since positions shift.

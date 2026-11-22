@@ -1,4 +1,4 @@
-"""MIDI Send — sends one MIDI message to its gates each time it runs."""
+"""Send MIDI — sends one MIDI message to its gates each time it runs."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from haywire.api import (
     BaseNode,
     ExecutionContext,
     NodeType,
-    SelectWidget,
+    MenuWidget,
     bag,
     node,
 )
@@ -21,7 +21,7 @@ from haybale_protokol.gate_names import gate_names
 from haybale_protokol.gate_sender import GateSender
 from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.sending import SendSettings
-from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
+from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, decode, encode
 from haybale_protokol_midi.midi_pins import KIND_PINS, NUMBER_PIN, number_filter
 
@@ -61,13 +61,13 @@ NUMBER_HELP = "For note and cc: the note or controller number, 0–127, or −1 
 
 
 @node(
-    label="MIDI Send",
+    label="Send MIDI",
     description="Sends one MIDI message to its gates each time it runs",
     menu="protokol/midi",
     search_tags=["midi", "send", "note", "cc", "controller", "protokol"],
     node_type=NodeType.CONTROL,
 )
-class MidiSendNode(BaseNode):
+class SendMidiNode(BaseNode):
     """Sends one message of its kind to every listed gate on each control tick.
 
     Kind, Channel and Number say what to send; the inlets follow them, and a channel or number left
@@ -89,7 +89,7 @@ class MidiSendNode(BaseNode):
                 default="",
                 label="Gate",
                 description=GATE_HELP,
-                widget=GateSelectWidget.config(properties={"protocol": "midi", "direction": "out"}),
+                widget=GateMenuWidget.config(properties={"protocol": "midi", "direction": "out"}),
             )
         )
         self.add(
@@ -98,7 +98,7 @@ class MidiSendNode(BaseNode):
                 default="cc",
                 label="Kind",
                 description=KIND_HELP,
-                widget=SelectWidget.config(properties={"options": list(KINDS)}),
+                widget=MenuWidget.config(properties={"options": list(KINDS)}),
                 on_change="hb_rebuild",
             )
         )

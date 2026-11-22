@@ -1,6 +1,6 @@
-# OSC Receive
+# OSC Event
 
-`haybale-protokol-osc:node:OscReceiveNode` · kind: node
+`haybale-protokol-osc:node:OscEventNode` · kind: node
 
 Triggered for each OSC message on an input gate that matches the address pattern
 

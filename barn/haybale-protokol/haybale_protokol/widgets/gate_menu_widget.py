@@ -1,4 +1,4 @@
-"""GateSelectWidget — pick gates as chips; the port keeps them as ``"a, b"`` text."""
+"""GateMenuWidget — pick gates as chips; the port keeps them as ``"a, b"`` text."""
 
 from __future__ import annotations
 
@@ -99,14 +99,14 @@ def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
 
 
 @widget(description="Pick gates as chips from the gates that fit the node, each coloured by its state")
-class GateSelectWidget(BaseWidget):
+class GateMenuWidget(BaseWidget):
     """A select of gates; its behaviour is set by plain properties, as the port saves them.
 
     Each chosen gate shows as a chip coloured by its state: success when usable, warning when this
     machine cannot use it now (protocol not installed, device unbound), danger when there is no such
     gate or it is of another protocol or direction. The select takes input only in edit mode.
 
-    Properties (``GateSelectWidget.config(properties={...})``):
+    Properties (``GateMenuWidget.config(properties={...})``):
 
     - ``protocol``: the gates to offer and check, e.g. ``"osc"``.
     - ``direction``: ``"in"`` or ``"out"``; two-way gates fit both.

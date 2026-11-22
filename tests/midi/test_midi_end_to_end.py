@@ -6,8 +6,8 @@ import pytest
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.gates import Gate
-from haybale_protokol_midi.nodes.midi_receive import MidiReceiveNode
-from haybale_protokol_midi.nodes.midi_send import MidiSendNode
+from haybale_protokol_midi.nodes.midi_event import MidiEventNode
+from haybale_protokol_midi.nodes.send_midi import SendMidiNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_edge, make_node
 from tests.midi.conftest import Sink, Source, needs_virtual, wait_for
@@ -22,10 +22,10 @@ def test_receive_to_send_through_virtual_ports(
     save_devices(
         device_list_path(), [Device("keys", "midi", source.name), Device("synth", "midi", sink.name)]
     )
-    receive = make_node(graph, MidiReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, MidiEventNode.class_identity.registry_key)
     for port, value in (("gate", "keys"), ("kind", "cc"), ("filter_channel", 1), ("filter_number", 7)):
         receive.node.ports[port].set_value(value)
-    send = make_node(graph, MidiSendNode.class_identity.registry_key, position=(400, 0))
+    send = make_node(graph, SendMidiNode.class_identity.registry_key, position=(400, 0))
     for port, value in (("gate", "synth"), ("kind", "cc"), ("filter_channel", 2), ("filter_number", 10)):
         send.node.ports[port].set_value(value)
     assert make_edge(graph, receive.node_id, "received", send.node_id, "exec").state.is_valid()

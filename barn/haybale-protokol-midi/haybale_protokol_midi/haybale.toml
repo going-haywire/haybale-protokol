@@ -11,7 +11,7 @@ version = "0.0.6"  # PEP 440, no "v" — canon here; pyproject.toml carries the 
 
 # ── display ───────────────────────────────────────────────────────────────
 label = "Protokol MIDI"  # human display name
-description = "MIDI for haybale-protokol: Device gates, MIDI Receive and Send nodes"  # one line
+description = "MIDI for haybale-protokol: Device gates, MIDI Event and Send MIDI nodes"  # one line
 tags = ["midi", "control", "protocol", "device"]  # filter tags in the library browser
 
 # ── behaviour ─────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
-# OSC Send
+# Send OSC
 
-`haybale-protokol-osc:node:OscSendNode` · kind: node
+`haybale-protokol-osc:node:SendOscNode` · kind: node
 
 Sends one OSC message to an output gate each time it runs
 

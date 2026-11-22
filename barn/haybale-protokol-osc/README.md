@@ -2,7 +2,7 @@
 
 # Protokol OSC
 
-OSC over UDP and TCP for Haywire, on top of `haybale-protokol`: an OSC Receive node and an OSC Send
+OSC over UDP and TCP for Haywire, on top of `haybale-protokol`: an OSC Event node and a Send OSC
 node, each using a gate from the project's `.haywire/protokol.toml` (see the Protokol notes
 for the file format).
 
@@ -13,7 +13,7 @@ A TCP gate is a client (`role = "client"`, connects to `host`) or a server
 speaks: `framing = "1.0"` (length prefix) or `"1.1"` (SLIP, the default). A client keeps
 reconnecting (0.5 s, 1 s, 2 s, 4 s, then every 5 s) and shows `reconnecting (n)`; anything sent
 while it is disconnected is dropped and counted, never queued. A server sends each message to
-all its peers. TCP gates may be `two-way`, so one gate can feed an OSC Receive and an OSC Send.
+all its peers. TCP gates may be `two-way`, so one gate can feed an OSC Event and a Send OSC.
 
 A peer that disappears without closing (power cut, lost Wi-Fi) is noticed by TCP keepalive
 after about 11 s; a client then reconnects. A peer that stops reading is disconnected once
@@ -23,11 +23,11 @@ it holds up a send for 0.2 s, rather than slowing the graph down.
 
 A node's **Gate** setting takes one or more gates. Pick them as chips from the list, which
 offers this project's OSC gates that fit the node (input or two-way for Receive, output or
-two-way for Send), or type a name and press Enter. OSC Receive listens on every listed gate;
-its **From gate** outlet says where a message came in. OSC Send sends each message to every
+two-way for Send), or type a name and press Enter. OSC Event listens on every listed gate;
+its **From gate** outlet says where a message came in. Send OSC sends each message to every
 listed gate. A listed gate that cannot be used is reported in `status`; the others still work.
 
-## OSC Receive
+## OSC Event
 
 Runs its flow for each message on its input gate whose address matches **Address**, an OSC
 address pattern (`*`, `?`, `[0-9]`, `{a,b}`; empty takes everything). Each wildcard gets a
@@ -39,7 +39,7 @@ arguments. The `args` outlet always carries every argument as a list; each token
 in `status`. By default the node fires once at start with the last message the gate saw
 (**Start Value**) and keeps only the newest message when its flow runs behind.
 
-## OSC Send
+## Send OSC
 
 Sends **Address** with one argument per inlet, in inlet order. Connect anything to the empty
 inlet to add an argument. Vectors go out as their components (`vf3` → three `f`). Use `d` or
@@ -65,12 +65,12 @@ https://github.com/going-haywire/haybale-protokol/blob/v0.0.6/marketstall.toml
 ```
 <!-- marketstall:share-url:end -->
 
-OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes
+OSC for haybale-protokol: UDP and TCP gates, OSC Event and Send OSC nodes
 
 ## Nodes
 ### Protokol
-- **OSC Receive** — Triggered for each OSC message on an input gate that matches the address pattern
-- **OSC Send** — Sends one OSC message to an output gate each time it runs
+- **OSC Event** — Triggered for each OSC message on an input gate that matches the address pattern
+- **Send OSC** — Sends one OSC message to an output gate each time it runs
 
 ## States
 - **Protokol OSC** — Registers the OSC driver with Protokol

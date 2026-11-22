@@ -1,4 +1,4 @@
-"""OSC Send — sends one OSC message to an output gate each time it runs."""
+"""Send OSC — sends one OSC message to an output gate each time it runs."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from haybale_protokol.gate_names import gate_names
 from haybale_protokol.gate_sender import GateSender
 from haybale_protokol.sending import SendSettings
 from haybale_protokol.receive import get_protokol_state
-from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
+from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.shape import ShapeError, encode
 
@@ -50,13 +50,13 @@ SHAPE_HELP = (
 
 
 @node(
-    label="OSC Send",
+    label="Send OSC",
     description="Sends one OSC message to an output gate each time it runs",
     menu="protokol/osc",
     search_tags=["osc", "send", "control", "network", "protokol", "touchosc"],
     node_type=NodeType.CONTROL,
 )
-class OscSendNode(ArgPins, BaseNode):
+class SendOscNode(ArgPins, BaseNode):
     """Sends `Address` with one argument per argument inlet, in inlet order, to its gate.
 
     `Gate` names an output gate in the project's Gate file. Connect anything to the empty
@@ -80,7 +80,7 @@ class OscSendNode(ArgPins, BaseNode):
                 default="",
                 label="Gate",
                 description=GATE_HELP,
-                widget=GateSelectWidget.config(properties={"protocol": "osc", "direction": "out"}),
+                widget=GateMenuWidget.config(properties={"protocol": "osc", "direction": "out"}),
             )
         )
         self.add(

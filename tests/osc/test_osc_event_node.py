@@ -1,4 +1,4 @@
-"""OSC Receive: messages on an input gate run the node's flow."""
+"""OSC Event: messages on an input gate run the node's flow."""
 
 from pathlib import Path
 from typing import Any
@@ -9,7 +9,7 @@ import pytest
 from pythonosc.udp_client import SimpleUDPClient
 
 from haybale_protokol.gates import Gate
-from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode, convert_capture
+from haybale_protokol_osc.nodes.osc_event import OscEventNode, convert_capture
 from haywire.core.graph.base import BaseGraph
 from haywire.core.graph.scheduler import SyncScheduler
 from tests.helpers import make_node
@@ -25,7 +25,7 @@ def _gate(port: int) -> Gate:
 
 
 def _receive(graph: Any, gate: str = "in", address: str = "", shape: str = "") -> Any:
-    wrapper = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    wrapper = make_node(graph, OscEventNode.class_identity.registry_key)
     wrapper.node.ports["gate"].set_value(gate)
     wrapper.node.ports["address"].set_value(address)
     wrapper.node.ports["arg_shape"].set_value(shape)

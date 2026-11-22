@@ -1,6 +1,6 @@
-# MIDI Receive
+# MIDI Event
 
-`haybale-protokol-midi:node:MidiReceiveNode` · kind: node
+`haybale-protokol-midi:node:MidiEventNode` · kind: node
 
 Triggered for each MIDI message on its gates that passes its kind, channel and number
 

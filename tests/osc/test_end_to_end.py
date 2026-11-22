@@ -9,8 +9,8 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.udp_client import SimpleUDPClient
 
 from haybale_protokol.gates import Gate
-from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode
-from haybale_protokol_osc.nodes.osc_send import OscSendNode
+from haybale_protokol_osc.nodes.osc_event import OscEventNode
+from haybale_protokol_osc.nodes.send_osc import SendOscNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_edge, make_node
 from tests.osc.graphs import protokol_project, running, wait_until
@@ -19,11 +19,11 @@ pytestmark = pytest.mark.integration
 
 
 def _forwarder(graph: Any, send_shape: str) -> tuple[Any, Any]:
-    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, OscEventNode.class_identity.registry_key)
     receive.node.ports["gate"].set_value("osc-in")
     receive.node.ports["address"].set_value("/in/*")
     receive.node.ports["arg_shape"].set_value("f")
-    send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0))
+    send = make_node(graph, SendOscNode.class_identity.registry_key, position=(400, 0))
     send.node.ports["gate"].set_value("osc-out")
     send.node.ports["address"].set_value("/out")
     send.node.ports["arg_shape"].set_value(send_shape)

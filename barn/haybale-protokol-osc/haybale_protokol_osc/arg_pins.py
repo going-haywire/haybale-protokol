@@ -1,4 +1,4 @@
-"""Argument pins that follow the Arg shape, shared by OSC Receive and OSC Send.
+"""Argument pins that follow the Arg shape, shared by OSC Event and Send OSC.
 
 The Arg shape text is the source of truth. Each named token has a pin with a stable id
 (``arg_<n>``, numbers never reused, because an edge's id contains its port's id); the node

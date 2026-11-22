@@ -1,6 +1,6 @@
-# GateSelectWidget
+# GateMenuWidget
 
-`haybale-protokol:widget:GateSelectWidget` · kind: widget
+`haybale-protokol:widget:GateMenuWidget` · kind: widget
 
 Pick gates as chips from the gates that fit the node, each coloured by its state
 
@@ -15,7 +15,7 @@ Each chosen gate shows as a chip coloured by its state: success when usable, war
 machine cannot use it now (protocol not installed, device unbound), danger when there is no such
 gate or it is of another protocol or direction. The select takes input only in edit mode.
 
-Properties (``GateSelectWidget.config(properties={...})``):
+Properties (``GateMenuWidget.config(properties={...})``):
 
 - ``protocol``: the gates to offer and check, e.g. ``"osc"``.
 - ``direction``: ``"in"`` or ``"out"``; two-way gates fit both.

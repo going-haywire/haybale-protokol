@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode
-from haybale_protokol_osc.nodes.osc_send import OscSendNode
+from haybale_protokol_osc.nodes.osc_event import OscEventNode
+from haybale_protokol_osc.nodes.send_osc import SendOscNode
 from haywire.core.graph.base import BaseGraph
 from haywire.core.errors.ledger import ErrorLedger, get_error_ledger, set_error_ledger
 from haywire.core.undo.actions.graph_actions import (
@@ -66,8 +66,8 @@ def _connect(graph: Any, src: Any, outlet: str, dst: Any, inlet: str) -> AddEdge
 
 
 def test_grown_add_pin_appends_token(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode, shape="i")
-    send = _node(graph, OscSendNode, shape="vf3", x=400)
+    receive = _node(graph, OscEventNode, shape="i")
+    send = _node(graph, SendOscNode, shape="vf3", x=400)
     _connect(graph, receive, _slot(receive), send, "arg_1")
     assert _shape(receive) == "i vf3"
     assert [t for _, t in _typed(receive)] == ["INT", "VEC3F"]
@@ -75,7 +75,7 @@ def test_grown_add_pin_appends_token(graph: BaseGraph) -> None:
 
 
 def test_growth_undo_is_one_step(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="i", x=400)
+    send = _node(graph, SendOscNode, shape="i", x=400)
     number = _number(graph)
     grown = _slot(send)
     action = _connect(graph, number, "value", send, grown)
@@ -89,7 +89,7 @@ def test_growth_undo_is_one_step(graph: BaseGraph) -> None:
 
 
 def test_deleting_the_growing_edge_drops_pin_and_token(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="i", x=400)
+    send = _node(graph, SendOscNode, shape="i", x=400)
     number = _number(graph)
     grown = _slot(send)
     edge_id = _connect(graph, number, "value", send, grown).wrapper.edge_id
@@ -103,7 +103,7 @@ def test_deleting_the_growing_edge_drops_pin_and_token(graph: BaseGraph) -> None
 
 
 def test_typed_pin_stays_after_edge_delete(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="f", x=400)
+    send = _node(graph, SendOscNode, shape="f", x=400)
     number = _number(graph)
     edge_id = _connect(graph, number, "value", send, "arg_1").wrapper.edge_id
     RemoveElementsAction(graph, [], [edge_id], release_pins=True).execute()
@@ -112,7 +112,7 @@ def test_typed_pin_stays_after_edge_delete(graph: BaseGraph) -> None:
 
 
 def test_reorder_rewrites_shape(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="f i s", x=400)
+    send = _node(graph, SendOscNode, shape="f i s", x=400)
     a, b, c = (port_id for port_id, _ in _typed(send))
     action = ReorderPortsAction(graph, send.node_id, [c, a, b, _slot(send)])
     action.execute()
@@ -123,14 +123,14 @@ def test_reorder_rewrites_shape(graph: BaseGraph) -> None:
 
 
 def test_reorder_keeps_skips_in_place(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode, shape="f _ i")
+    receive = _node(graph, OscEventNode, shape="f _ i")
     a, b = (port_id for port_id, _ in _typed(receive))
     ReorderPortsAction(graph, receive.node_id, [b, a, _slot(receive)]).execute()
     assert _shape(receive) == "i _ f"
 
 
 def test_deleting_grown_edge_after_invalid_typing(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="i", x=400)
+    send = _node(graph, SendOscNode, shape="i", x=400)
     grown = _slot(send)
     edge_id = _connect(graph, _number(graph), "value", send, grown).wrapper.edge_id
     send.node.ports["arg_shape"].set_value("i f q")
@@ -145,38 +145,38 @@ def _outlet_order(wrapper: Any) -> list[str]:
 
 @pytest.mark.parametrize("shape", ["", "f i", "f _ vf3"])
 def test_receive_slot_is_the_last_outlet(graph: BaseGraph, shape: str) -> None:
-    receive = _node(graph, OscReceiveNode)
+    receive = _node(graph, OscEventNode)
     receive.node.ports["address"].set_value("/blob/*")
     receive.node.ports["arg_shape"].set_value(shape)
     assert _outlet_order(receive)[-1] == _slot(receive)
 
 
 def test_receive_slot_stays_last_after_growing(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode, shape="i")
-    send = _node(graph, OscSendNode, shape="vf3", x=400)
+    receive = _node(graph, OscEventNode, shape="i")
+    send = _node(graph, SendOscNode, shape="vf3", x=400)
     _connect(graph, receive, _slot(receive), send, "arg_1")
     assert _outlet_order(receive)[-1] == _slot(receive)
 
 
-@pytest.mark.parametrize("cls", [OscReceiveNode, OscSendNode])
+@pytest.mark.parametrize("cls", [OscEventNode, SendOscNode])
 def test_configs_explain_themselves(graph: BaseGraph, cls: Any) -> None:
     ports = _node(graph, cls).node.ports
     assert "Gate file" in ports["gate"].description
     assert "Arg shape" in ports["arg_shape"].description or "token" in ports["arg_shape"].description
     assert "pin" in ports["arg_shape"].description
-    if cls is OscReceiveNode:
+    if cls is OscEventNode:
         assert "match_" in ports["address"].description
 
 
 def test_dragging_the_slot_among_the_args_puts_it_back_last(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode, shape="f i")
+    receive = _node(graph, OscEventNode, shape="f i")
     a, b = (port_id for port_id, _ in _typed(receive))
     ReorderPortsAction(graph, receive.node_id, [a, _slot(receive), b]).execute()
     assert _outlet_order(receive)[-1] == _slot(receive)
 
 
 def test_receive_outlets_keep_their_order_with_a_shape(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode)
+    receive = _node(graph, OscEventNode)
     receive.node.ports["address"].set_value("/a/*")
     receive.node.ports["arg_shape"].set_value("f i")
     order = _outlet_order(receive)
@@ -185,7 +185,7 @@ def test_receive_outlets_keep_their_order_with_a_shape(graph: BaseGraph) -> None
     assert order[7:] == ["timetag", "status", _slot(receive)]
 
 
-@pytest.mark.parametrize("cls", [OscSendNode, OscReceiveNode])
+@pytest.mark.parametrize("cls", [SendOscNode, OscEventNode])
 def test_removing_a_pin_drops_its_token_and_undo_redo_follow(
     graph: BaseGraph, cls: Any, ledger: Any
 ) -> None:
@@ -206,7 +206,7 @@ def test_removing_a_pin_drops_its_token_and_undo_redo_follow(
 
 
 def test_removing_a_pin_keeps_skips_in_place(graph: BaseGraph) -> None:
-    receive = _node(graph, OscReceiveNode, shape="f _ i s")
+    receive = _node(graph, OscEventNode, shape="f _ i s")
     _, second, _ = (port_id for port_id, _ in _typed(receive))
     remove = RemovePortAction(graph, receive.node_id, second)
     remove.execute()
@@ -217,7 +217,7 @@ def test_removing_a_pin_keeps_skips_in_place(graph: BaseGraph) -> None:
 
 def test_a_removed_pin_is_refused_text_no_more(graph: BaseGraph) -> None:
     """An invalid shape typed after a removal goes back to the shape the removal left."""
-    send = _node(graph, OscSendNode, shape="f i", x=400)
+    send = _node(graph, SendOscNode, shape="f i", x=400)
     _, second = (port_id for port_id, _ in _typed(send))
     RemovePortAction(graph, send.node_id, second).execute()
     send.node.ports["arg_shape"].set_value("f q")
@@ -225,7 +225,7 @@ def test_a_removed_pin_is_refused_text_no_more(graph: BaseGraph) -> None:
 
 
 def test_removing_a_grown_pin_and_undo_keep_it_grown(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="i", x=400)
+    send = _node(graph, SendOscNode, shape="i", x=400)
     number = _number(graph)
     grown = _slot(send)
     edge_id = _connect(graph, number, "value", send, grown).wrapper.edge_id
@@ -242,5 +242,5 @@ def test_removing_a_grown_pin_and_undo_keep_it_grown(graph: BaseGraph) -> None:
 
 
 def test_argument_pin_labels_carry_no_position(graph: BaseGraph) -> None:
-    send = _node(graph, OscSendNode, shape="f vf3", x=400)
+    send = _node(graph, SendOscNode, shape="f vf3", x=400)
     assert [port.label for port in send.node._arg_ports()] == ["f", "vf3"]
