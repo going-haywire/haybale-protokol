@@ -65,3 +65,34 @@ class FakeDriver:
 
     def describe(self, message: Message) -> str:
         return f"{message.address} {message.args}"
+
+
+class FakeDeviceDriver(FakeDriver):
+    """Protocol ``fakedev``: gates name a Device; ``present`` is what the OS lists now.
+
+    One line per Device and direction, like MIDI. Opening a Device whose ``os_id`` is not present
+    fails the way a real port does: ``cannot open: no port '<os_id>'``.
+    """
+
+    protocol = "fakedev"
+    uses_devices = True
+
+    def __init__(self, present: list[str] | None = None) -> None:
+        super().__init__()
+        self.present: list[str] = list(present or [])
+        self.listings = 0
+
+    def line_key(self, gate: Gate, device: Device | None) -> LineKey:
+        if device is None:
+            raise ValueError("a fakedev gate needs a device")
+        return LineKey("fakedev", f"{gate.direction} {device.os_id}")
+
+    def open(self, key: LineKey, gate: Gate, device: Device | None) -> FakeConnection:
+        os_id = device.os_id if device is not None else ""
+        connection = FakeConnection(None if os_id in self.present else f"no port '{os_id}'")
+        self.connections.append(connection)
+        return connection
+
+    def list_devices(self) -> list[tuple[str, str]]:
+        self.listings += 1
+        return [(name, "input and output") for name in self.present]
