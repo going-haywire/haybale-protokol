@@ -274,3 +274,98 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
   `[index, position, token, was_grown]` as the memento. They write the Arg shape with their
   own rebuild suppressed (a hook must not change ports), and OSC Event refreshes its decode
   tokens under its lock. Argument pin labels are the bare token, since positions shift.
+
+## 10. Gate health, reconnect and one editor (proposed 2026-11-22)
+
+> **Status: proposed.** Written from a live check with an Intech Grid on Linux. The owner
+> settled the editor layout (§10.4) and the questions in §10.6; approving this section's pull
+> request approves the design. It then supersedes the editor table in §5.
+
+### 10.1 What the live check found
+
+With the Grid's Device mapped but the Grid unplugged, the studio restarted and a graph using
+its gate running:
+
+| Where | Shown | Says the Grid is missing? |
+|---|---|---|
+| Gates editor | `closed` | No: an unused, healthy gate reads the same |
+| Device editor | no sign the port is absent | No |
+| Monitor | the port cannot be opened | Yes, the only place |
+| Node card | nothing; the gate chip on the node is green | No, and green is misleading |
+| Node `status` outlet | `Grid: cannot open: no MIDI port 'Grid:Grid MIDI 1 28:0'` | Yes, but nobody sees it: no flow runs, so nothing downstream prints it |
+| Error ledger, log | nothing | No |
+
+Plugging the Grid back in while the graph ran changed nothing, not even the device row;
+only restarting the graph recovered. Also: a node's `status` outlet value is saved with the
+graph, so a reopened graph showed the previous session's status (`… listening on Grid`).
+
+The Gate/Device split itself is functional, not formal (§3.2): the Device holds what only
+this machine knows (the OS port name, which carries ALSA's ` 28:0`), the Gate what the
+project means. It yields two different failures with different remedies, *unbound* (map a
+port) and *not plugged in* (plug it in), which today look alike or invisible.
+
+### 10.2 Gate health
+
+`ProtokolState` keeps one live **Gate health** per gate, the single source for every view:
+
+| Health | Meaning |
+|---|---|
+| `working` | Its Line is open and has users |
+| `closed` | It can open, nothing uses it now |
+| `unbound` | It names a Device this machine's Device list does not have |
+| `not plugged in` | Its Device is mapped, but no port matches its OS name now |
+| `error` | It cannot open; the reason is kept (`port in use`, bad options, …) |
+
+For device protocols the driver reports which Devices are present; `ProtokolState` re-checks
+when the system's port list changes and signals `ProtokolChanged` only on a change of health.
+Network gates have no `not plugged in`.
+
+### 10.3 Shown everywhere, from that one source
+
+- **Gates editor rows**: a red mark and the reason on every gate not `working`/`closed`; the
+  Monitor button only on a gate that can open.
+- **Editor icon**: a plain red dot on the Gates editor's icon while any gate is `unbound`,
+  `not plugged in` or `error`.
+- **Node**: a `NodeWarning` badge with the reason on every Receive and Send node whose gate is
+  unhealthy (as the MIDI filter badge does), and the gate chip in the node's gate field red
+  instead of green.
+- **`status` outlet**: stays, but is not saved with the graph (or is cleared on load), so a
+  reopened graph never shows last session's state.
+
+### 10.4 One editor: Gates above, Device below (settled by the owner)
+
+The Device editor (CONTEXT slot) is removed. The Gates editor (ACTION slot) holds two panes
+stacked vertically with a draggable divider that never collapses (core's `ui.splitter`, as
+`haybale-studio`'s Errors editor uses):
+
+- **Top, "Gates"**: the gate list with health; the header keeps its **+** (add a gate).
+- **Bottom, "Device"**: what the Device editor showed for the selection. A selected gate shows
+  its options, its Device mapping with a picker of the ports on this machine now, its health
+  and its Line. With nothing selected: this machine's Device list. The header keeps its
+  **+** (add a device) and gains a **refresh** button (§10.6.1).
+- Fixing an unbound gate happens there: pick a port, and the Device entry is created or
+  updated behind it.
+- Access is unchanged (§5): editing the Device list stays ADMIN. Without it the port picker is
+  read-only and says "needs an admin".
+- The Monitor's device button selects the gate in the Gates editor instead of opening the
+  Device editor.
+
+### 10.5 Reconnect
+
+Receive nodes only (Send nodes: §10.6.2). A Receive node whose gate is `not plugged in`
+when its graph starts waits for it: when the Device appears, its binding opens the Line and
+the node fires as normal, without a graph restart. A Device unplugged during a run turns the gate `not plugged in`, and the node
+reconnects when it comes back (today: `port gone … restart the graph`).
+
+### 10.6 Decided by the owner (2026-11-22)
+
+1. **Detecting plug and unplug**: a **refresh button** in the Device pane's header forces a
+   re-check of every Device at once. Between presses the port list is polled about once a
+   second, which works alike on Linux, macOS and Windows (WinMM sends no notifications);
+   the system's notifications (ALSA's announce port, CoreMIDI) can replace polling later if
+   it proves costly.
+2. **Send nodes do not reconnect**: while their gate is unhealthy they drop and count every
+   message, as today, until the graph restarts. Their badge (§10.3) says why.
+3. **Divider position**: kept while the page is open, as the Errors editor does; not
+   remembered across reloads.
+4. **Editor icon**: a plain red dot while any gate is unhealthy, no count.
