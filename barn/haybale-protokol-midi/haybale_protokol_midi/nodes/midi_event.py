@@ -14,6 +14,7 @@ from haywire.api import (
     ExecutionContext,
     NodeType,
     MenuWidget,
+    NumberWidget,
     bag,
     node,
 )
@@ -24,7 +25,16 @@ from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, STREAM_KINDS
-from haybale_protokol_midi.midi_pins import ARG_NAMES, KIND_PINS, NUMBER_PIN, number_filter
+from haybale_protokol_midi.midi_pins import (
+    CHANNEL_RANGE,
+    NUMBER_RANGE,
+    ARG_NAMES,
+    KIND_PINS,
+    NUMBER_PIN,
+    filter_problem,
+    number_filter,
+    show_filter_problem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +126,18 @@ class MidiEventNode(BaseNode):
                 default=1,
                 label="Channel",
                 description=CHANNEL_HELP,
+                widget=NumberWidget.config(properties=CHANNEL_RANGE),
                 on_change="hb_rebuild",
             )
         )
         self.add(
             INT.as_config(
-                "filter_number", default=-1, label="Number", description=NUMBER_HELP, on_change="hb_rebuild"
+                "filter_number",
+                default=-1,
+                label="Number",
+                description=NUMBER_HELP,
+                widget=NumberWidget.config(properties=NUMBER_RANGE),
+                on_change="hb_rebuild",
             )
         )
         self.add(EXEC.as_outlet("received", label="Received"))
@@ -133,9 +149,11 @@ class MidiEventNode(BaseNode):
     def post_init(self) -> None:
         self._bindings: list[ReceiveBinding] = []
         self._subscribe()
+        show_filter_problem(self, self._filter_problem())
 
     def on_assembly(self) -> tuple[bool, str | None]:
         self._subscribe()
+        show_filter_problem(self, self._filter_problem())
         return True, None
 
     # -- ports -------------------------------------------------------------------
@@ -146,6 +164,7 @@ class MidiEventNode(BaseNode):
         with self.rejig(include=_REBUILT):
             self._add_filter_outlets(kind, channel, number)
         self._subscribe()
+        show_filter_problem(self, self._filter_problem())
 
     def _add_filter_outlets(self, kind: str, channel: int, number: int) -> None:
         import haywire.api as builtin
@@ -236,11 +255,7 @@ class MidiEventNode(BaseNode):
     def _filter_problem(self) -> str | None:
         """Why no message can pass the filter, or ``None``: such a node would never fire."""
         kind, channel, number = self._filter()
-        if kind in CHANNEL_KINDS and not 0 <= channel <= 16:
-            return f"Channel must be 0 (any) or 1–16, not {channel}"
-        if kind in NUMBER_PIN and not -1 <= number <= 127:
-            return f"Number must be −1 (any) or 0–127, not {number}"
-        return None
+        return filter_problem(kind, channel, number, open_word="any")
 
     # -- helpers -----------------------------------------------------------------
 

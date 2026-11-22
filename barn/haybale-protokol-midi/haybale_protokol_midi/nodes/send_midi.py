@@ -13,6 +13,7 @@ from haywire.api import (
     ExecutionContext,
     NodeType,
     MenuWidget,
+    NumberWidget,
     bag,
     node,
 )
@@ -23,7 +24,15 @@ from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.sending import SendSettings
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, decode, encode
-from haybale_protokol_midi.midi_pins import KIND_PINS, NUMBER_PIN, number_filter
+from haybale_protokol_midi.midi_pins import (
+    CHANNEL_RANGE,
+    NUMBER_RANGE,
+    KIND_PINS,
+    NUMBER_PIN,
+    filter_problem,
+    number_filter,
+    show_filter_problem,
+)
 
 #: Display order of every inlet the filter can bring.
 _INLET_ORDER = (
@@ -108,12 +117,18 @@ class SendMidiNode(BaseNode):
                 default=1,
                 label="Channel",
                 description=CHANNEL_HELP,
+                widget=NumberWidget.config(properties=CHANNEL_RANGE),
                 on_change="hb_rebuild",
             )
         )
         self.add(
             INT.as_config(
-                "filter_number", default=-1, label="Number", description=NUMBER_HELP, on_change="hb_rebuild"
+                "filter_number",
+                default=-1,
+                label="Number",
+                description=NUMBER_HELP,
+                widget=NumberWidget.config(properties=NUMBER_RANGE),
+                on_change="hb_rebuild",
             )
         )
         self.add(EXEC.as_inlet("exec", label="Send"))
@@ -123,6 +138,11 @@ class SendMidiNode(BaseNode):
 
     def post_init(self) -> None:
         self._sender = GateSender()
+        self._show_filter_problem()
+
+    def on_assembly(self) -> tuple[bool, str | None]:
+        self._show_filter_problem()
+        return True, None
 
     # -- ports -------------------------------------------------------------------
 
@@ -131,6 +151,12 @@ class SendMidiNode(BaseNode):
         kind, channel, number = self._filter()
         with self.rejig(include=_REBUILT):
             self._add_inlets(kind, channel, number)
+        self._show_filter_problem()
+
+    def _show_filter_problem(self) -> None:
+        """A fixed channel or number out of range would drop every message: badge it at once."""
+        kind, channel, number = self._filter()
+        show_filter_problem(self, filter_problem(kind, channel, number, open_word="from an inlet"))
 
     def _add_inlets(self, kind: str, channel: int, number: int) -> None:
         import haywire.api as builtin

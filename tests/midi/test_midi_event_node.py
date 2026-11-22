@@ -7,6 +7,7 @@ import pytest
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.gates import Gate
+from haybale_protokol_midi.midi_pins import FILTER_WARNING
 from haybale_protokol_midi.nodes.midi_event import MidiEventNode
 from haywire.core.graph.base import BaseGraph
 from haywire.core.graph.scheduler import SyncScheduler
@@ -156,6 +157,57 @@ def test_missing_device_status(graph: BaseGraph, tmp_path: Path) -> None:
         assert wait_until(
             lambda: "keys: cannot open: no MIDI port 'no such port'" in str(wrapper.node.value("status"))
         )
+
+
+def _filter_warnings(wrapper: Any) -> list[str]:
+    return [w.message for w in wrapper.state.warnings if w.kind == FILTER_WARNING]
+
+
+def test_an_impossible_channel_shows_a_warning_badge_at_once(graph: BaseGraph) -> None:
+    """No run needed: the badge appears as the value is typed, and goes when it is valid again."""
+    wrapper = _receive(graph, kind="cc", channel=1, number=40)
+    assert _filter_warnings(wrapper) == []
+    wrapper.node.ports["filter_channel"].set_value(17)
+    assert _filter_warnings(wrapper) == ["Channel must be 0 (any) or 1–16, not 17"]
+    wrapper.node.ports["filter_channel"].set_value(1)
+    assert _filter_warnings(wrapper) == []
+    assert not wrapper.state.has_warning()
+
+
+def test_an_impossible_number_shows_a_warning_badge(graph: BaseGraph) -> None:
+    wrapper = _receive(graph, kind="note", channel=1, number=128)
+    assert _filter_warnings(wrapper) == ["Number must be −1 (any) or 0–127, not 128"]
+    wrapper.node.ports["filter_number"].set_value(-1)
+    assert _filter_warnings(wrapper) == []
+
+
+def test_the_badge_follows_the_kind(graph: BaseGraph) -> None:
+    """sysex has no channel: switching to it clears a channel warning, switching back shows it."""
+    wrapper = _receive(graph, kind="cc", channel=17, number=-1)
+    assert _filter_warnings(wrapper)
+    wrapper.node.ports["kind"].set_value("sysex")
+    assert _filter_warnings(wrapper) == []
+    wrapper.node.ports["kind"].set_value("cc")
+    assert _filter_warnings(wrapper) == ["Channel must be 0 (any) or 1–16, not 17"]
+
+
+def test_a_saved_impossible_filter_shows_the_badge_after_reload(graph: BaseGraph) -> None:
+    wrapper = _receive(graph, kind="cc", channel=17, number=-1)
+    loaded = BaseGraph(filestem="reload", validation_scheduler=SyncScheduler())
+    assert loaded.load_from_dict(graph.to_dict())
+    assert _filter_warnings(loaded.get_node_wrapper(wrapper.node_id)) == [
+        "Channel must be 0 (any) or 1–16, not 17"
+    ]
+
+
+@pytest.mark.parametrize("registry_key", ["event", "send"])
+def test_channel_and_number_fields_are_limited(graph: BaseGraph, registry_key: str) -> None:
+    from haybale_protokol_midi.nodes.send_midi import SendMidiNode
+
+    cls = MidiEventNode if registry_key == "event" else SendMidiNode
+    node = make_node(graph, cls.class_identity.registry_key).node
+    assert node.ports["filter_channel"].widget_config["properties"] == {"min": 0, "max": 16}
+    assert node.ports["filter_number"].widget_config["properties"] == {"min": -1, "max": 127}
 
 
 def test_save_reload_keeps_ports(graph: BaseGraph) -> None:

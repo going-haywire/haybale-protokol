@@ -8,6 +8,7 @@ import pytest
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.gates import Gate
+from haybale_protokol_midi.midi_pins import FILTER_WARNING
 from haybale_protokol_midi.nodes.send_midi import SendMidiNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_node
@@ -62,6 +63,15 @@ def test_inlets_follow_the_kind(graph: BaseGraph, kind: str) -> None:
 def test_channel_and_number_inlets_for_any(graph: BaseGraph) -> None:
     node = _send(graph, kind="note", channel=0, number=-1)
     assert _inlets(node) == ["channel", "note", "velocity", "on"]
+
+
+def test_an_impossible_fixed_channel_shows_a_warning_badge(graph: BaseGraph) -> None:
+    node = _send(graph, kind="note", channel=1, number=60)
+    node.ports["filter_channel"].set_value(17)
+    warnings = [w.message for w in node.wrapper.state.warnings if w.kind == FILTER_WARNING]
+    assert warnings == ["Channel must be 0 (from an inlet) or 1–16, not 17"]
+    node.ports["filter_channel"].set_value(0)
+    assert not node.wrapper.state.has_warning()
 
 
 @needs_virtual
