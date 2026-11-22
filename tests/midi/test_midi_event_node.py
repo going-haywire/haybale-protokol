@@ -151,12 +151,11 @@ def test_filters_a_kind_ignores_are_not_checked(graph: BaseGraph, tmp_path: Path
 
 @needs_backend
 def test_missing_device_status(graph: BaseGraph, tmp_path: Path) -> None:
+    """A Device that is not plugged in: the node waits for it (design §10.5), and says so."""
     save_devices(device_list_path(), [Device("keys", "midi", "no such port")])
     wrapper = _receive(graph)
     with protokol_project(tmp_path, Gate("keys", "midi", "in", device="keys")), running(graph):
-        assert wait_until(
-            lambda: "keys: cannot open: no MIDI port 'no such port'" in str(wrapper.node.value("status"))
-        )
+        assert wait_until(lambda: str(wrapper.node.value("status")) == "waiting for 'keys'")
 
 
 def _filter_warnings(wrapper: Any) -> list[str]:

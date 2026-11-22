@@ -231,6 +231,8 @@ class ProtokolState(AppState):
                 self._lines.pop(key, None)
                 return self._failed(driver, gate, device, line.status)
             self._open_failures.pop(gate.name, None)
+        if device is not None and self._device_present(driver, device) is False:
+            self._relist(driver)  # it just opened, so the last listing is out of date
         return LineUse(line, token, gate)
 
     def line_of(self, gate: Gate) -> Line | None:
@@ -479,8 +481,25 @@ class ProtokolState(AppState):
                 self._forget_failures(protocol=driver.protocol)
             changed = True
         if changed:
+            self._close_unplugged_lines()
             self._changed()
         return changed
+
+    def _close_unplugged_lines(self) -> None:
+        """Close the open Lines of gates whose Device is not plugged in now.
+
+        Never kept for their grace period: a port that went away does not come back to the same
+        connection (ALSA drops the subscription), so a replug must open a fresh Line.
+        """
+        try:
+            gates = list(self.gates().values())
+        except RuntimeError:
+            return
+        for gate in gates:
+            if gate.device is not None and self.health(gate).state == "not plugged in":
+                line = self.line_of(gate)
+                if line is not None:
+                    line.close()
 
     def _start_watch(self) -> None:
         with self._lock:
@@ -541,9 +560,23 @@ class ProtokolState(AppState):
         Not when its Device is absent: health already says ``not plugged in``, and the failure
         must not outlive the replug.
         """
+        if device is not None and self._device_present(driver, device) is not False:
+            self._relist(driver)  # the open failed: check the listing is not just out of date
         if device is None or self._device_present(driver, device) is not False:
             self._open_failures[gate.name] = (gate.protocol, reason)
         return reason
+
+    def _relist(self, driver: ProtocolDriver) -> None:
+        """List ``driver``'s devices now and keep the listing, when an open contradicted the last one."""
+        seen = list_devices(driver)
+        if seen is None:
+            return
+        listing = tuple(sorted(seen))
+        with self._lock:
+            if self._seen.get(driver.protocol) == listing:
+                return
+            self._seen[driver.protocol] = listing
+        self._changed()
 
     def _forget_failures(self, *, protocol: str | None = None, names: set[str] | None = None) -> None:
         """Drop the remembered open failures of ``protocol``'s gates, or of ``names``; hold the lock."""
