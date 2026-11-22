@@ -67,3 +67,4 @@ Task 20 (owner paste): copied Monitor rows run together (no text separators betw
 Task 20: complete (commits ..46e9b52, tests: uv run --frozen pytest -q → 404 passed)
 Owner decision: Monitor order toggle (C): newest first (default) / oldest first like a log, following the bottom unless scrolled up; ms timestamps.
 Task 21: order toggle complete (commits ..55c27e9, tests: uv run --frozen pytest -q → 407 passed)
+Follow-up (2026-11-22): fixed #5 (rename rewrites the header in place; delete keeps the next gate's comment)
