@@ -205,6 +205,9 @@ def _message(
 
 
 def _ranged(field: str, value: Any, low: int, high: int) -> int:
+    """``value`` as an int in ``low..high``; a whole float (``3.0``) counts, ``3.7`` never rounds."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field} must be a whole number {low}..{high}, not {value!r}")
     if not low <= value <= high:

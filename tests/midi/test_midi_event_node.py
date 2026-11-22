@@ -123,6 +123,31 @@ def test_two_gates(graph: BaseGraph, tmp_path: Path) -> None:
         b.close()
 
 
+@pytest.mark.parametrize(
+    ("kind", "channel", "number", "problem"),
+    [
+        ("cc", 17, -1, "Channel must be 0 (any) or 1–16, not 17"),
+        ("note", -2, -1, "Channel must be 0 (any) or 1–16, not -2"),
+        ("cc", 1, 128, "Number must be −1 (any) or 0–127, not 128"),
+        ("note", 1, -5, "Number must be −1 (any) or 0–127, not -5"),
+    ],
+)
+def test_an_impossible_filter_is_named_in_status(
+    graph: BaseGraph, tmp_path: Path, kind: str, channel: int, number: int, problem: str
+) -> None:
+    """A filter no message can pass would never fire; the status says why instead."""
+    wrapper = _receive(graph, kind=kind, channel=channel, number=number)
+    with protokol_project(tmp_path, Gate("keys", "midi", "in", device="keys")), running(graph):
+        assert wait_until(lambda: str(wrapper.node.value("status")).startswith(problem))
+
+
+def test_filters_a_kind_ignores_are_not_checked(graph: BaseGraph, tmp_path: Path) -> None:
+    wrapper = _receive(graph, kind="sysex", channel=99, number=999)
+    with protokol_project(tmp_path, Gate("keys", "midi", "in", device="keys")), running(graph):
+        assert wait_until(lambda: "unbound gate" in str(wrapper.node.value("status")))
+        assert "must be" not in str(wrapper.node.value("status"))
+
+
 @needs_backend
 def test_missing_device_status(graph: BaseGraph, tmp_path: Path) -> None:
     save_devices(device_list_path(), [Device("keys", "midi", "no such port")])

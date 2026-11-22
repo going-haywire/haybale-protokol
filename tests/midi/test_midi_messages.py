@@ -127,3 +127,13 @@ def test_describe(data: list[int], text: str) -> None:
     message = decode(data, 0.0)
     assert message is not None
     assert describe(message) == text
+
+
+@pytest.mark.parametrize("channel", [3.7, "3", None])
+def test_encode_channel_must_be_whole(channel: Any) -> None:
+    with pytest.raises(ValueError, match="channel must be a whole number"):
+        encode("cc", channel, 7, {"value": 1})
+
+
+def test_encode_takes_a_whole_float() -> None:
+    assert encode("cc", 3.0, 7.0, {"value": 64.0}) == encode("cc", 3, 7, {"value": 64})

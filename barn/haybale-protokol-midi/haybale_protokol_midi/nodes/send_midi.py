@@ -176,7 +176,7 @@ class SendMidiNode(BaseNode):
         try:
             data = encode(
                 kind,
-                int(values.get("channel", channel)) if kind in CHANNEL_KINDS else None,
+                values.get("channel", channel) if kind in CHANNEL_KINDS else None,
                 number if number >= 0 else None,
                 values,
             )
