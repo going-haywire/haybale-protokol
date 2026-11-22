@@ -223,12 +223,7 @@ def _encode_one(index: int, token: Token, value: Any) -> tuple[str, list[Any]]:
         flag = bool(value)
         return ("T" if flag else "F"), [flag]
     if kind == "r":
-        text = str(value).lstrip("#")
-        rgba = text if len(text) == 8 else text[:6] + "ff"
-        try:
-            return "r", [int(rgba, 16)]
-        except ValueError:
-            raise ShapeError(f"arg {index}: {value!r} is not a colour") from None
+        return "r", [_rgba(index, value)]
     if kind in _VECTORS:
         items = list(value)
         if len(items) != token.width:
@@ -290,3 +285,23 @@ def token_for_type(type_name: str) -> str | None:
     if vector is not None:
         return f"v{vector.group(2).lower()}{vector.group(1)}"
     return None
+
+
+_HEX_COLOUR = re.compile(r"#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
+
+
+def _rgba(index: int, value: Any) -> int:
+    """``value`` (``#rgb``, ``#rgba``, ``#rrggbb`` or ``#rrggbbaa``; ``#`` optional) as OSC's 32-bit RGBA.
+
+    Raises:
+        ShapeError: Not one of those forms.
+    """
+    found = _HEX_COLOUR.fullmatch(str(value))
+    if found is None:
+        raise ShapeError(f"arg {index}: {value!r} is not a colour (use #rgb, #rgba, #rrggbb or #rrggbbaa)")
+    digits = found.group(1)
+    if len(digits) <= 4:
+        digits = "".join(char * 2 for char in digits)
+    if len(digits) == 6:
+        digits += "ff"
+    return int(digits, 16)

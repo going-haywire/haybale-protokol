@@ -61,8 +61,11 @@ def compile_pattern(text: str) -> AddressPattern:
             body = text[i + 1 : end]
             negate = body.startswith("!")
             body = body[1:] if negate else body
+            if not body:
+                raise ValueError(f"empty '[...]' at position {i}")
             escaped = "".join("-" if c == "-" else re.escape(c) for c in body)
-            parts.append(f"([{'^' if negate else ''}{escaped}])")
+            # A negated set matches any one character but those, and never '/': like '?'.
+            parts.append(f"([^/{escaped}])" if negate else f"([{escaped}])")
             i = end
         elif char == "{":
             end = text.find("}", i + 1)

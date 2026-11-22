@@ -95,6 +95,27 @@ def test_encode_bool_color_matrix() -> None:
     assert args[3:] == (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 
 
+@pytest.mark.parametrize(
+    ("text", "rgba"),
+    [
+        ("#fff", 0xFFFFFFFF),
+        ("#f00", 0xFF0000FF),
+        ("#f008", 0xFF000088),
+        ("#ff0000", 0xFF0000FF),
+        ("#ff000080", 0xFF000080),
+        ("ff0000", 0xFF0000FF),
+    ],
+)
+def test_encode_color_forms(text: str, rgba: int) -> None:
+    assert encode(parse_shape("r", receive=False), [ColorStr(text)]) == ("r", (rgba,))
+
+
+@pytest.mark.parametrize("text", ["#fffff", "#ff", "", "#ggg", "rgba(255,0,0,1)"])
+def test_encode_bad_color_raises(text: str) -> None:
+    with pytest.raises(ShapeError, match="is not a colour"):
+        encode(parse_shape("r", receive=False), [ColorStr(text)])
+
+
 def test_encode_out_of_range_int_raises() -> None:
     with pytest.raises(ArgRangeError) as caught:
         encode(parse_shape("f i", receive=False), [0.5, 3_000_000_000])
