@@ -11,9 +11,9 @@ Pick gates as chips from the gates that fit the node, each coloured by its state
 
 A select of gates; its behaviour is set by plain properties, as the port saves them.
 
-Each chosen gate shows as a chip coloured by its state: success when usable, warning when this
-machine cannot use it now (protocol not installed, device unbound), danger when there is no such
-gate or it is of another protocol or direction. The select takes input only in edit mode.
+Each chosen gate shows as a chip coloured by its state: success when it works now, danger when
+it does not (``gate_tone``): no such gate, another protocol or direction, or its health is
+unbound, not plugged in or error. The select takes input only in edit mode.
 
 Properties (``GateMenuWidget.config(properties={...})``):
 

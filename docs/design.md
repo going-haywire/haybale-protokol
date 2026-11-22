@@ -101,6 +101,9 @@ control state is worse than none. A server gate accepts many peers; a send goes 
 
 ## 5. Editors and access
 
+> Superseded in part by §10.4 (2026-11-22): the Device editor became the Device pane, the lower
+> half of the Gates editor. The access tiers below are unchanged.
+
 | Editor | Slot | Shows |
 |---|---|---|
 | **Gates editor** | ACTION | the project's gates, each with its line and status; binds unbound gates |
