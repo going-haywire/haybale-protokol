@@ -21,3 +21,6 @@ Task 4: complete (tests: 642 passed x2; ruff, mypy clean)
 Task 5: Ruling: the chip follows health with two tones only (success = healthy, danger = anything else); the old "warning" for unbound / protocol not installed becomes danger, as the owner asked for red — cost if wrong: unbound and broken look alike on the chip (the badge says which).
 Task 5: note: the widget does not subscribe to ProtokolChanged; it is recoloured when the node card redraws, which replace_warnings triggers exactly when the gate badge changes — to confirm in the live check.
 Task 5: complete (tests: 643 passed; ruff, mypy clean)
+Task 6: Ruling: the red dot also shows for a broken Gate file or a malformed gate entry, not only for unhealthy gates — they are gates that do not work too — cost if wrong: none.
+Task 6: Ruling: a disabled Monitor button gets its tooltip ("Cannot monitor: <reason>") on a wrapping span — the design guide's disabled rule sets pointer-events: none, and a tooltip on such a button never shows (Plan 3 deferred #7) — cost if wrong: none.
+Task 6: complete (tests: 648 passed; ruff, mypy clean)
