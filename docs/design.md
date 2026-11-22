@@ -278,8 +278,8 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
 ## 10. Gate health, reconnect and one editor (proposed 2026-11-22)
 
 > **Status: proposed.** Written from a live check with an Intech Grid on Linux. The owner
-> settled the editor layout (§10.4); the open questions in §10.6 need the owner before a
-> plan is written. Once approved, this section supersedes the editor table in §5.
+> settled the editor layout (§10.4) and the questions in §10.6; approving this section's pull
+> request approves the design. It then supersedes the editor table in §5.
 
 ### 10.1 What the live check found
 
@@ -324,7 +324,7 @@ Network gates have no `not plugged in`.
 
 - **Gates editor rows**: a red mark and the reason on every gate not `working`/`closed`; the
   Monitor button only on a gate that can open.
-- **Editor icon**: a red badge on the Gates editor's icon while any gate is `unbound`,
+- **Editor icon**: a plain red dot on the Gates editor's icon while any gate is `unbound`,
   `not plugged in` or `error`.
 - **Node**: a `NodeWarning` badge with the reason on every Receive and Send node whose gate is
   unhealthy (as the MIDI filter badge does), and the gate chip in the node's gate field red
@@ -342,7 +342,7 @@ stacked vertically with a draggable divider that never collapses (core's `ui.spl
 - **Bottom, "Device"**: what the Device editor showed for the selection. A selected gate shows
   its options, its Device mapping with a picker of the ports on this machine now, its health
   and its Line. With nothing selected: this machine's Device list. The header keeps its
-  **+** (add a device).
+  **+** (add a device) and gains a **refresh** button (§10.6.1).
 - Fixing an unbound gate happens there: pick a port, and the Device entry is created or
   updated behind it.
 - Access is unchanged (§5): editing the Device list stays ADMIN. Without it the port picker is
@@ -352,18 +352,20 @@ stacked vertically with a draggable divider that never collapses (core's `ui.spl
 
 ### 10.5 Reconnect
 
-A Receive node whose gate is `not plugged in` when its graph starts waits for it: when the
-Device appears, its binding opens the Line and the node fires as normal, without a graph
-restart. A Device unplugged during a run turns the gate `not plugged in`, and the node
+Receive nodes only (Send nodes: §10.6.2). A Receive node whose gate is `not plugged in`
+when its graph starts waits for it: when the Device appears, its binding opens the Line and
+the node fires as normal, without a graph restart. A Device unplugged during a run turns the gate `not plugged in`, and the node
 reconnects when it comes back (today: `port gone … restart the graph`).
 
-### 10.6 Open questions for the owner
+### 10.6 Decided by the owner (2026-11-22)
 
-1. **Detecting plug and unplug**: poll the port list (about once a second, as the MIDI driver
-   already does per open port), or subscribe to the system's announcements (ALSA's announce
-   port on Linux; CoreMIDI notifications on macOS; none on Windows' WinMM)?
-2. **Send nodes**: reconnect like Receive nodes (§10.5), or keep dropping and counting until
-   the graph restarts?
-3. **Divider position**: kept while the page is open (as the Errors editor does), or also
-   remembered per browser across reloads?
-4. **The badge on the editor icon**: a count of unhealthy gates, or a plain red dot?
+1. **Detecting plug and unplug**: a **refresh button** in the Device pane's header forces a
+   re-check of every Device at once. Between presses the port list is polled about once a
+   second, which works alike on Linux, macOS and Windows (WinMM sends no notifications);
+   the system's notifications (ALSA's announce port, CoreMIDI) can replace polling later if
+   it proves costly.
+2. **Send nodes do not reconnect**: while their gate is unhealthy they drop and count every
+   message, as today, until the graph restarts. Their badge (§10.3) says why.
+3. **Divider position**: kept while the page is open, as the Errors editor does; not
+   remembered across reloads.
+4. **Editor icon**: a plain red dot while any gate is unhealthy, no count.

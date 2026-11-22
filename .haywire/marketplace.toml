@@ -115,3 +115,19 @@ label = "Visiongraph"
 description = "Visiongraph is a computer-vision pipeline library designed to simplify the prototyping of image-based algorithms"
 linked_libraries = [ "haybale-core", "haybale-image", "haybale-models",]
 
+[[caches]]
+name = "haybale-protokol-osc"
+label = "Protokol OSC"
+version = "0.0.4"
+require = "haywire-core>=0.5.1"
+description = "OSC for haybale-protokol: UDP and TCP gates, OSC Receive and Send nodes"
+source = "pypi"
+install_spec = "haybale-protokol-osc==0.0.4"
+tags = [ "osc", "control", "protocol", "network",]
+on_reload = "none"
+linked_libraries = [ "haybale_protokol", "haybale_core",]
+origin = "https://github.com/going-haywire/haybale-protokol"
+origin_provider = "github"
+notes = "NOTES.md"
+via = "https://going-haywire.github.io/marketplace/stable/marketplace.toml"
+
