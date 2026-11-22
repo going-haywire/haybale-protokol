@@ -17,6 +17,7 @@ from haywire.api import (
     ExecutionContext,
     NodeType,
     PortOrigin,
+    StoreStrategy,
     TextWidget,
     bag,
     node,
@@ -25,6 +26,7 @@ from haywire.api import (
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
 from haybale_protokol.gate_names import gate_names, named_status
+from haybale_protokol.gate_warning import GateBadge
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
@@ -110,6 +112,7 @@ class OscEventNode(ArgPins, BaseNode):
                 label="Gate",
                 description=GATE_HELP,
                 widget=GateMenuWidget.config(properties={"protocol": "osc", "direction": "in"}),
+                on_change="hb_gate_changed",
             )
         )
         self.add(
@@ -140,6 +143,8 @@ class OscEventNode(ArgPins, BaseNode):
         self._add_rebuilt_ports(compile_pattern(""), [], {})
 
     def post_init(self) -> None:
+        self._gate_badge = GateBadge(self)
+        self._gate_badge.start()
         self._lock = threading.Lock()
         self._bindings: list[ReceiveBinding] = []
         self._skipped = 0
@@ -150,6 +155,7 @@ class OscEventNode(ArgPins, BaseNode):
         self._subscribe()
 
     def on_assembly(self) -> tuple[bool, str | None]:
+        self._gate_badge.refresh()
         self._subscribe()
         return True, None
 
@@ -227,7 +233,7 @@ class OscEventNode(ArgPins, BaseNode):
             origin = PortOrigin.DECLARED if type_cls is None else PortOrigin.RESOLVED
             self.add(self._capture_spec(port_id, type_cls or ADD, origin))
         self.add(FLOAT.as_outlet("timetag", label="Timetag", default=0.0))
-        self.add(STRING.as_outlet("status", label="Status", default=""))
+        self.add(STRING.as_outlet("status", label="Status", default="", store_strategy=StoreStrategy.NEVER))
         self._order_rebuilt(pattern.captures)
 
     def _order_rebuilt(self, captures: int) -> None:
@@ -284,15 +290,26 @@ class OscEventNode(ArgPins, BaseNode):
                 fire,
                 start_value=start_value,
                 block=queue_mode.name == "BLOCK",
+                on_status=lambda: self.post_value("status", self._status([])),
             )
             for name in gate_names(str(self.value("gate") or ""))
         ]
         self.post_value("status", self._status([]))
+        self._gate_badge.refresh()
 
     def on_shutdown(self, context: ExecutionContext) -> None:
         for binding in self._bindings:
             binding.close()
         self._bindings = []
+
+    def on_teardown(self) -> None:
+        badge = getattr(self, "_gate_badge", None)  # absent when post_init never ran
+        if badge is not None:
+            badge.stop()
+
+    def hb_gate_changed(self, *_args: object) -> None:
+        """The gate setting changed: show its gates' health at once."""
+        self._gate_badge.refresh()
 
     def worker(self, context: ExecutionContext) -> str | None:
         payload = context.trigger.payload if context.trigger else None

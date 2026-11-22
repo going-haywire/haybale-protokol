@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
 import threading
+import time
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -19,7 +22,15 @@ from haybale_protokol.devices import (
     load_devices,
     save_devices,
 )
-from haybale_protokol.drivers import LineKey, Message, ProtocolDriver
+from haybale_protokol.drivers import (
+    LineKey,
+    Message,
+    ProtocolDriver,
+    find_device,
+    list_devices,
+    uses_devices,
+)
+from haybale_protokol.gate_health import GateHealth
 from haybale_protokol.gates import (
     Gate,
     GateFileError,
@@ -41,6 +52,12 @@ _GATE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 #: The grace period when the setting cannot be read.
 DEFAULT_GRACE_S = 2.0
+#: Seconds between device checks when the setting cannot be read.
+DEFAULT_WATCH_S = 1.0
+#: The device watch's thread name.
+WATCH_THREAD = "protokol-device-watch"
+
+HealthListener = Callable[[], None]
 
 
 @state(
@@ -71,8 +88,20 @@ class ProtokolState(AppState):
         self._lock = threading.RLock()
         self._gates: dict[str, Gate] = {}
         self._gates_stamp: tuple[float, int] | None = None
+        self._open_failures: dict[str, tuple[str, str]] = {}
+        """The last failed open per gate name, as ``(protocol, reason)``; cleared by a good open."""
+        self.watch_s: Callable[[], float] = _watch_from_settings
+        """Seconds between checks of which Devices are present."""
+        self._seen: dict[str, tuple[tuple[str, str], ...]] = {}
+        """The last listing of each device-using protocol: ``(os name, description)`` pairs."""
+        self._listeners: list[weakref.WeakMethod[HealthListener] | HealthListener] = []
+        self._watch: threading.Thread | None = None
+        self._watch_stop = threading.Event()
+        self._poke = threading.Event()
+        """Set by every change; the watch thread then tells the health listeners."""
 
     def on_disable(self) -> None:
+        self._stop_watch()
         for line in self.lines():
             line.close()
 
@@ -83,15 +112,23 @@ class ProtokolState(AppState):
         with self._lock:
             previous = self._drivers.get(driver.protocol)
             self._drivers[driver.protocol] = driver
+            self._forget_failures(protocol=driver.protocol)
         if previous is not None and previous is not driver:
             self._close_lines(driver.protocol)
+            _close_driver(previous)
+        if uses_devices(driver):
+            self._start_watch()
         self._changed()
 
     def unregister_driver(self, protocol: str) -> None:
         """Remove the driver for ``protocol`` and close its Lines at once."""
         with self._lock:
-            self._drivers.pop(protocol, None)
+            driver = self._drivers.pop(protocol, None)
+            self._forget_failures(protocol=protocol)
+            self._seen.pop(protocol, None)
         self._close_lines(protocol)
+        if driver is not None:
+            _close_driver(driver)
         self._changed()
 
     def protocols(self) -> list[str]:
@@ -179,7 +216,7 @@ class ProtokolState(AppState):
                 try:
                     connection = driver.open(key, gate, device)
                 except ValueError as exc:
-                    return f"gate '{gate.name}': {exc}"
+                    return self._failed(driver, gate, device, f"gate '{gate.name}': {exc}")
                 line = Line(key, connection, driver.cache_key, self.grace_s)
                 line.gate = gate
                 line.on_closed = self._forget
@@ -192,7 +229,10 @@ class ProtokolState(AppState):
                 token = line.add_user(subscriber, outbound=outbound)
             except LineOpenError:
                 self._lines.pop(key, None)
-                return line.status
+                return self._failed(driver, gate, device, line.status)
+            self._open_failures.pop(gate.name, None)
+        if device is not None and self._device_present(driver, device) is False:
+            self._relist(driver)  # it just opened, so the last listing is out of date
         return LineUse(line, token, gate)
 
     def line_of(self, gate: Gate) -> Line | None:
@@ -203,6 +243,46 @@ class ProtokolState(AppState):
         with self._lock:
             line = self._lines.get(resolved[2])
         return line if line is not None and line.is_open else None
+
+    def health(self, gate: Gate | str) -> GateHealth:
+        """Whether ``gate`` (or the gate named so) works now, and why not; see ``GateHealth``."""
+        if isinstance(gate, str):
+            gates = self.gates()
+            if self.gate_file_error is not None:
+                return GateHealth("error", f"gate file: {self.gate_file_error}")
+            found = gates.get(gate)
+            if found is None:
+                if gate in self.gate_errors:
+                    return GateHealth("error", f"gate '{gate}': {self.gate_errors[gate]}")
+                return GateHealth("error", f"no gate named '{gate}'")
+            gate = found
+        driver = self.driver(gate.protocol)
+        if driver is None:
+            return GateHealth("error", "protocol not installed")
+        device = None
+        if gate.device is not None:
+            try:
+                device = load_devices(device_list_path()).get(gate.device)
+            except DeviceListError as exc:
+                return GateHealth("error", f"device list: {exc}")
+            if device is None:
+                return GateHealth("unbound", f"unbound gate: no device '{gate.device}' on this machine")
+            if self._device_present(driver, device) is False:
+                return GateHealth(
+                    "not plugged in", f"'{device.name}' is not plugged in (port '{device.os_id}')"
+                )
+        try:
+            driver.line_key(gate, device)
+        except ValueError as exc:
+            return GateHealth("error", f"gate '{gate.name}': {exc}")
+        with self._lock:
+            failure = self._open_failures.get(gate.name)
+        if failure is not None:
+            return GateHealth("error", failure[1])
+        line = self.line_of(gate)
+        if line is not None and line.users:
+            return GateHealth("working", f"{line.status} · {line.users} users")
+        return GateHealth("closed", "closed")
 
     def tap(self, gate: Gate, *, open_line: bool) -> Tap | str:
         """A Monitor tap on ``gate``'s Line, in whatever directions the gate has.
@@ -225,6 +305,56 @@ class ProtokolState(AppState):
             return result
         tap.use = result
         return tap
+
+    # -- the device watch and health listeners --------------------------------------------
+
+    def watch_health(self, callback: HealthListener) -> Callable[[], None]:
+        """Call ``callback`` after any change that may change a gate's health; returns ``unwatch``.
+
+        Called on the watch thread, outside every lock, so it may call ``health``; it must not
+        block. A bound method is held weakly, so a deleted node does not stay alive through it.
+        """
+        entry: weakref.WeakMethod[HealthListener] | HealthListener
+        entry = weakref.WeakMethod(callback) if hasattr(callback, "__self__") else callback
+        with self._lock:
+            self._listeners.append(entry)
+        self._start_watch()
+
+        def unwatch() -> None:
+            with self._lock:
+                if entry in self._listeners:
+                    self._listeners.remove(entry)
+
+        return unwatch
+
+    def refresh_devices(self) -> None:
+        """Check which Devices are present now, for every device-using driver (the refresh button)."""
+        self._check_devices(only_used=False)
+
+    def device_listing(self, protocol: str) -> tuple[tuple[str, str], ...] | None:
+        """``(os name, description)`` of ``protocol``'s devices at the last check (listed now if none).
+
+        ``None`` when there is no driver for ``protocol``, or it cannot list devices.
+        """
+        driver = self.driver(protocol)
+        if driver is None or not uses_devices(driver):
+            return None
+        with self._lock:
+            seen = self._seen.get(protocol)
+        if seen is None:
+            listed = list_devices(driver)
+            if listed is None:
+                return None
+            seen = tuple(sorted(listed))
+            with self._lock:
+                seen = self._seen.setdefault(protocol, seen)
+        return seen
+
+    def present_devices(self, protocol: str) -> frozenset[str] | None:
+        """The OS names ``protocol``'s driver listed at its last check, or ``None`` if never checked."""
+        with self._lock:
+            seen = self._seen.get(protocol)
+        return None if seen is None else frozenset(name for name, _ in seen)
 
     # -- editing the Gate file -----------------------------------------------------------
 
@@ -256,12 +386,16 @@ class ProtokolState(AppState):
                 except ValueError as exc:
                     return str(exc)
         write_gate(gate_file_path(self._project_root()), gate, replaces=replaces)
+        with self._lock:
+            self._forget_failures(names={gate.name} | ({replaces} if replaces else set()))
         self._reread_gates()
         return None
 
     def delete_gate(self, name: str) -> None:
         """Remove ``name`` from the Gate file."""
         remove_gate(gate_file_path(self._project_root()), name)
+        with self._lock:
+            self._forget_failures(names={name})
         self._reread_gates()
 
     # -- editing the Device list ---------------------------------------------------------
@@ -321,6 +455,148 @@ class ProtokolState(AppState):
             return f"gate '{gate.name}': {exc}"
         return driver, device, key
 
+    def _device_present(self, driver: ProtocolDriver, device: Device) -> bool | None:
+        """Whether ``device``'s port is on this machine now; ``None`` when the driver cannot tell."""
+        seen = self.device_listing(driver.protocol)
+        if seen is None:
+            return None
+        return find_device(driver, device.os_id, seen) is not None
+
+    def _check_devices(self, *, only_used: bool) -> bool:
+        """List the present devices of each device-using driver; report a change. Returns whether one did.
+
+        With ``only_used``, only drivers some gate names a Device of (the watch's tick).
+        """
+        with self._lock:
+            drivers = [d for d in self._drivers.values() if uses_devices(d)]
+        if only_used and drivers:
+            try:
+                gates = self.gates()
+            except RuntimeError:  # no project known yet (the app not initialised): no gate to watch for
+                return False
+            used = {g.protocol for g in gates.values() if g.device is not None}
+            drivers = [d for d in drivers if d.protocol in used]
+        changed = False
+        for driver in drivers:
+            try:
+                seen = list_devices(driver)
+            except Exception:
+                logger.debug("listing %s devices failed", driver.protocol, exc_info=True)
+                continue
+            if seen is None:
+                continue
+            listing = tuple(sorted(seen))
+            with self._lock:
+                if self._seen.get(driver.protocol) == listing:
+                    continue
+                self._seen[driver.protocol] = listing
+                self._forget_failures(protocol=driver.protocol)
+            changed = True
+        if changed:
+            self._close_unplugged_lines()
+            self._changed()
+        return changed
+
+    def _close_unplugged_lines(self) -> None:
+        """Close the open Lines of gates whose Device is not plugged in now.
+
+        Never kept for their grace period: a port that went away does not come back to the same
+        connection (ALSA drops the subscription), so a replug must open a fresh Line.
+        """
+        try:
+            gates = list(self.gates().values())
+        except RuntimeError:
+            return
+        for gate in gates:
+            if gate.device is not None and self.health(gate).state == "not plugged in":
+                line = self.line_of(gate)
+                if line is not None:
+                    line.close()
+
+    def _start_watch(self) -> None:
+        with self._lock:
+            if self._watch is not None and self._watch.is_alive():
+                return
+            self._watch_stop.clear()
+            # The app's ambient context (the workspace root the Gate file is found from) is a
+            # context variable, which a new thread does not inherit: run in a copy of the caller's.
+            context = contextvars.copy_context()
+            self._watch = threading.Thread(
+                target=context.run, args=(self._run_watch,), name=WATCH_THREAD, daemon=True
+            )
+            self._watch.start()
+
+    def _stop_watch(self) -> None:
+        with self._lock:
+            watch, self._watch = self._watch, None
+        self._watch_stop.set()
+        self._poke.set()
+        if watch is not None and watch is not threading.current_thread():
+            watch.join(timeout=2.0)
+
+    def _run_watch(self) -> None:
+        """Check the devices every ``watch_s`` and tell the listeners of every change, until stopped."""
+        next_check = time.monotonic() + self.watch_s()
+        while not self._watch_stop.is_set():
+            self._poke.wait(timeout=max(0.0, next_check - time.monotonic()))
+            if self._watch_stop.is_set():
+                return
+            if self._poke.is_set():
+                self._poke.clear()
+                self._notify()
+            if time.monotonic() >= next_check:
+                try:
+                    self._check_devices(only_used=True)
+                except Exception:
+                    logger.exception("device check failed")
+                next_check = time.monotonic() + self.watch_s()
+
+    def _notify(self) -> None:
+        with self._lock:
+            entries = list(self._listeners)
+        for entry in entries:
+            callback = entry() if isinstance(entry, weakref.WeakMethod) else entry
+            if callback is None:
+                with self._lock:
+                    if entry in self._listeners:
+                        self._listeners.remove(entry)
+                continue
+            try:
+                callback()
+            except Exception:
+                logger.exception("health listener failed")
+
+    def _failed(self, driver: ProtocolDriver, gate: Gate, device: Device | None, reason: str) -> str:
+        """Remember a failed open of ``gate`` for its health, and return ``reason``.
+
+        Not when its Device is absent: health already says ``not plugged in``, and the failure
+        must not outlive the replug.
+        """
+        if device is not None and self._device_present(driver, device) is not False:
+            self._relist(driver)  # the open failed: check the listing is not just out of date
+        if device is None or self._device_present(driver, device) is not False:
+            self._open_failures[gate.name] = (gate.protocol, reason)
+            self._changed()  # its health is now "error": badges and editors show it
+        return reason
+
+    def _relist(self, driver: ProtocolDriver) -> None:
+        """List ``driver``'s devices now and keep the listing, when an open contradicted the last one."""
+        seen = list_devices(driver)
+        if seen is None:
+            return
+        listing = tuple(sorted(seen))
+        with self._lock:
+            if self._seen.get(driver.protocol) == listing:
+                return
+            self._seen[driver.protocol] = listing
+        self._changed()
+
+    def _forget_failures(self, *, protocol: str | None = None, names: set[str] | None = None) -> None:
+        """Drop the remembered open failures of ``protocol``'s gates, or of ``names``; hold the lock."""
+        for name, (failed_protocol, _reason) in list(self._open_failures.items()):
+            if failed_protocol == protocol or (names is not None and name in names):
+                del self._open_failures[name]
+
     def _reread_gates(self) -> None:
         with self._lock:
             self._gates_stamp = None
@@ -352,6 +628,7 @@ class ProtokolState(AppState):
         """
         from nicegui import core
 
+        self._poke.set()
         if not hasattr(self, "_dispatcher"):
             return  # not bound to an app (a standalone instance): nobody to tell
         loop = core.loop
@@ -370,6 +647,26 @@ def _line_conflict(driver: ProtocolDriver, gate: Gate, line: Line) -> str | None
         if mine.get(option) != theirs.get(option):
             return f"gate '{gate.name}': {option} differs from gate '{first.name}' on the same line"
     return None
+
+
+def _close_driver(driver: ProtocolDriver) -> None:
+    """Call the driver's optional ``close()`` (its device-listing probes); never raises."""
+    close = getattr(driver, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            logger.debug("closing the %s driver failed", driver.protocol, exc_info=True)
+
+
+def _watch_from_settings() -> float:
+    from haybale_protokol.settings.protokol_settings import ProtokolSettings
+
+    try:
+        return max(0.1, float(ProtokolSettings().device_watch_s))
+    except Exception:
+        logger.debug("device_watch_s unreadable; using %s", DEFAULT_WATCH_S, exc_info=True)
+        return DEFAULT_WATCH_S
 
 
 def _grace_from_settings() -> float:

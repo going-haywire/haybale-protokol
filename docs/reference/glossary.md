@@ -17,6 +17,8 @@
 | **Device list** | The per-machine list of **Devices**, shared by every project on the machine. Holds nothing about network peers. | machine config, device settings |
 | **Gate file** | The project's list of **Gates**, committed with the project. | endpoint setup, OSC config |
 | **Unbound gate** | A **Gate** whose **Device** name is not in this machine's **Device list**; its nodes show this as their status. | missing device, broken gate |
+| **Not plugged in** | A **Gate** whose **Device** is in the **Device list**, but whose port is not on this machine now (unplugged, switched off). Receive nodes wait for it and reconnect. | disconnected, offline, absent |
+| **Gate health** | Whether a **Gate** works now, and why not: working, closed, unbound, not plugged in, or error. The one source every view reads. | gate status (the status texts are its reasons), state |
 
 ## Protocols
 
@@ -40,10 +42,10 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Gates editor** | The ACTION-slot editor that lists the project's **Gates** with their **Line** and status. | endpoint editor, OSC editor |
+| **Gates editor** | The ACTION-slot editor: the project's **Gates** with their **Gate health** above, the **Device pane** below. | endpoint editor, OSC editor |
 | **Monitor** | The EDIT-slot tab that shows, filters and logs live traffic on **Lines**, including **Lines** no **Gate** uses yet. | sniffer, traffic log, console |
-| **Device editor** | The CONTEXT-slot editor that shows the **Device** or **Line** in the **Protokol selection**. | device panel, inspector |
-| **Protokol selection** | The **Gate**, **Line** or **Device** currently selected in one session; what the **Device editor** follows. | current gate, focus |
+| **Device pane** | The lower pane of the **Gates editor**: the **Gate**, **Device** or **Line** in the **Protokol selection**, or the **Device list**. Replaced the Device editor (design §10.4). | Device editor (removed), device panel, inspector |
+| **Protokol selection** | The **Gate**, **Line** or **Device** currently selected in one session; what the **Device pane** follows. | current gate, focus |
 
 ## Relationships
 

@@ -1,0 +1,37 @@
+# Ledger — plan: docs/superpowers/plans/2026-11-22-protokol-gate-health.md
+
+Owner approved Plan 4b (2026-11-22, #18 merged by request). Branch plan-4b-gate-health from master eb065bb.
+Task 1: Ruling: the unbound reason keeps the existing text "unbound gate: no device 'x' on this machine" (node statuses, NOTES and editor tests use it), not the plan table's shorter form — cost if wrong: none.
+Task 1: Ruling: an open failure is not remembered while the gate's Device is absent — health already says "not plugged in", and the failure must not turn the gate "error" after the replug — cost if wrong: none.
+Task 1: complete (commit 6b55c7b, tests: 603 passed; ruff, mypy clean)
+Task 2: Ruling: health reads a per-protocol cache of the last listing (filled live on first use, refreshed by the watch or refresh_devices), so drawing gate rows never lists ports — cost if wrong: health lags a plug event by up to one interval.
+Task 2: Ruling: the watch thread is also the notifier — every _changed() pokes it, and listeners run there outside every lock (never on a Line thread) — cost if wrong: listener calls are coalesced, not one per change.
+Task 2: Ruling: a device change forgets the protocol's remembered open failures — a failure seen before an unplug must not outlive the replug — cost if wrong: a real failure shows "closed" until the next open.
+Task 2: Ruling: the watch thread runs in a copy of the starting thread's contextvars context — haywire's workspace root is ambient, and the first run failed with "workspace_root not set" in the thread — cost if wrong: none.
+Task 2: complete (tests: 616 passed; ruff, mypy clean). MIDI probes verified live on ALSA: a kept MidiIn sees a virtual port appear and vanish.
+Task 3: Ruling: an unplugged device's Line is closed at once (by the watch on a presence change, and by a binding that finds its Device gone), never kept for its grace period — on ALSA a port that went away never comes back to the same connection, and a replug inside the grace period would have reused a dead Line — plan gap — cost if wrong: a Monitor tap on that Line closes too (it has no device either).
+Task 3: Ruling: each reconnect attempt holds a per-binding lock and re-checks "still waiting, no use yet" first — two attempts once both took the Line and a message was delivered twice in between (seen ~1 in 3 runs) — cost if wrong: none.
+Task 3: Ruling: a successful open while the cached listing says the Device is absent, or a failed open while it says present, re-lists that driver at once — the suite's shared state showed a stale cache making a binding close its own working Line — cost if wrong: one extra listing per contradicting open.
+Task 3: changed test: test_missing_device_status now expects "waiting for 'keys'" (the node waits for the Device, design §10.5) instead of "cannot open: no MIDI port …".
+Task 3: complete (tests: 624 passed x3; ruff, mypy clean). Real ALSA virtual ports: unplug/replug mid-run and start-unplugged both reconnect.
+Task 4: Ruling: the badge is a GateBadge object each node owns (start in post_init, refresh on the gate setting's on_change, in on_assembly and at the end of on_startup, stop in on_teardown) — core has on_teardown, so the weak listener is a fallback, not the mechanism — cost if wrong: none.
+Task 4: Ruling: a remembered open failure now emits _changed(), so a badge turns "error" as soon as a graph's start fails to open a port — cost if wrong: one extra signal per failed open.
+Task 4: note: a notification already under way when unwatch() runs may still call the listener once; GateBadge.refresh is harmless then (no wrapper → nothing).
+Task 4: complete (tests: 642 passed x2; ruff, mypy clean)
+Task 5: Ruling: the chip follows health with two tones only (success = healthy, danger = anything else); the old "warning" for unbound / protocol not installed becomes danger, as the owner asked for red — cost if wrong: unbound and broken look alike on the chip (the badge says which).
+Task 5: note: the widget does not subscribe to ProtokolChanged; it is recoloured when the node card redraws, which replace_warnings triggers exactly when the gate badge changes — to confirm in the live check.
+Task 5: complete (tests: 643 passed; ruff, mypy clean)
+Task 6: Ruling: the red dot also shows for a broken Gate file or a malformed gate entry, not only for unhealthy gates — they are gates that do not work too — cost if wrong: none.
+Task 6: Ruling: a disabled Monitor button gets its tooltip ("Cannot monitor: <reason>") on a wrapping span — the design guide's disabled rule sets pointer-events: none, and a tooltip on such a button never shows (Plan 3 deferred #7) — cost if wrong: none.
+Task 6: complete (tests: 648 passed; ruff, mypy clean)
+Task 7: Ruling: the Device pane reads device status from the watch's cached listing (new ProtokolState.device_listing), so a redraw never lists ports; the mapping dialog still lists fresh, as the user is choosing — cost if wrong: status lags a plug by up to one interval (refresh fixes it at once).
+Task 7: Ruling: "not connected" becomes "not plugged in", matching health, and shows in the danger tone — cost if wrong: none.
+Task 7: Ruling: an unbound gate's view offers "Map device…" (ADMIN) itself, the device name filled in; without ADMIN it says mapping needs an admin — cost if wrong: none.
+Task 7: Ruling (fix to task 2): the MIDI listing probes are one rtmidi pair per process, not per driver — per-driver probes exhausted ALSA's client limit in the suite ("Cannot allocate memory") — cost if wrong: none.
+Task 7: not checked here: a saved workspace naming the removed editor — to watch in the live check (the studio restart).
+Task 7: complete (tests: 652 passed x2; ruff, mypy clean)
+Task 8: docs regenerated (haywire docs --all: 3 libraries clean). No saved workspace named the removed DeviceEditor.
+Live check (owner, 2026-11-22): 7 of 9 pass — icon dot, red row and greyed Monitor, divider and Device pane, node badge and red chip, start unplugged, plug in while running, unplug mid-run. Fail: replug mid-run ("takes about 10 s") and refresh ("does nothing").
+Live check finding: not ours — the kernel needs 11–32 s to enumerate the Grid on each replug (first USB handshake times out, error -110, on the ESP32-based Grid, vid 303a); until then no MIDI port exists, so refresh correctly finds none. Timing run: unplug → badge +0.69 s after the kernel's disconnect; kernel MIDI port → badge gone (reconnected) +0.57 s.
+Live check fix: the status outlet stayed "listening on Grid" while waiting (only startup and firing wrote it). ReceiveBinding gains on_status, called when it starts waiting and when it listens again; OSC Event and MIDI Event post their status from it. Test: test_status_follows_an_unplug_and_replug_while_running (real ALSA ports).
+Final: 654 passed x2; ruff, mypy clean.

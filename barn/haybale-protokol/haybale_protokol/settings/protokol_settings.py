@@ -18,3 +18,15 @@ class ProtokolSettings(LibrarySettings):
         ),
         category="Lines",
     )
+
+    device_watch_s = setting[FLOAT](
+        1.0,
+        min=0.2,
+        max=10.0,
+        label="Device check interval (s)",
+        description=(
+            "How often the plugged-in devices are checked, so a gate notices a device "
+            "being unplugged or plugged back in. The refresh button checks at once."
+        ),
+        category="Devices",
+    )

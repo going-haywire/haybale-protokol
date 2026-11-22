@@ -11,7 +11,8 @@ for the file format).
 A TCP gate is a client (`role = "client"`, connects to `host`) or a server
 (`role = "server"`, accepts any number of peers on `bind`). Choose the framing your peer
 speaks: `framing = "1.0"` (length prefix) or `"1.1"` (SLIP, the default). A client keeps
-reconnecting (0.5 s, 1 s, 2 s, 4 s, then every 5 s) and shows `reconnecting (n)`; anything sent
+reconnecting (0.5 s, 1 s, 2 s, 4 s, then every 5 s) and shows `reconnecting (n)`, or
+`cannot reach … (tried n)` with the reason while it has never connected; anything sent
 while it is disconnected is dropped and counted, never queued. A server sends each message to
 all its peers. TCP gates may be `two-way`, so one gate can feed an OSC Event and a Send OSC.
 

@@ -50,6 +50,10 @@ class MidiDriver:
     protocol = "midi"
     uses_devices = True
 
+    def close(self) -> None:
+        """Delete the listing probes; the next listing makes new ones. Safe to call twice."""
+        _close_probes()
+
     def gate_fields(self) -> tuple[GateField, ...]:
         """MIDI gates have no options of their own: the Device says which port."""
         return ()
@@ -83,9 +87,10 @@ class MidiDriver:
     def list_devices(self) -> list[tuple[str, str]]:
         """Every MIDI port on this machine, as ``(port name, "input" | "output" | "input and output")``."""
         try:
-            inputs, outputs = set(_port_names(rtmidi.MidiIn)), set(_port_names(rtmidi.MidiOut))
+            inputs, outputs = _listed_ports()
         except Exception:  # no MIDI backend on this machine (e.g. Linux without ALSA's sequencer)
             logger.debug("listing MIDI ports failed", exc_info=True)
+            _close_probes()
             return []
         names = sorted(inputs | outputs)
         return [(name, _role(name in inputs, name in outputs)) for name in names]
@@ -261,12 +266,32 @@ def _find_port(midi: Any, port: str) -> tuple[int, str]:
     return ports.index(found), found
 
 
-def _port_names(cls: Any) -> list[str]:
-    midi = cls()
-    try:
-        return list(midi.get_ports())
-    finally:
-        midi.delete()
+#: One rtmidi input and output kept open by the whole process for listing ports. The device watch
+#: lists every second; a new rtmidi object per listing would be a new client of the OS's MIDI
+#: system, and one pair per driver instance would pile up (ALSA has a client limit).
+_probes: tuple[Any, Any] | None = None
+_probe_lock = threading.Lock()
+
+
+def _listed_ports() -> tuple[set[str], set[str]]:
+    """The input and output port names now, through the shared probes (made on first use)."""
+    global _probes
+    with _probe_lock:
+        if _probes is None:
+            _probes = (rtmidi.MidiIn(), rtmidi.MidiOut())
+        probe_in, probe_out = _probes
+        return set(probe_in.get_ports()), set(probe_out.get_ports())
+
+
+def _close_probes() -> None:
+    global _probes
+    with _probe_lock:
+        probes, _probes = _probes, None
+    for probe in probes or ():
+        try:
+            probe.delete()
+        except Exception:
+            logger.debug("deleting a MIDI probe failed", exc_info=True)
 
 
 def _role(is_input: bool, is_output: bool) -> str:

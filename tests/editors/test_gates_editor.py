@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from typing import Any
+
 import pytest
 from nicegui.testing import User
 
@@ -248,3 +250,97 @@ async def test_change_signal_keeps_an_open_dialog(
     editor._on_change(editor._context, None)
     assert not dialog.is_deleted
     assert dialog.value
+
+
+# -- health on rows, the Monitor button, the icon's red dot (Plan 4b, task 6) ---------------
+
+
+def _unplugged_grid(protokol: ProtokolState, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
+    from haybale_protokol.devices import Device, device_list_path, save_devices
+    from tests.fakes import FakeDeviceDriver
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    fake = FakeDeviceDriver(present=[])
+    protokol.register_driver(fake)
+    save_devices(device_list_path(), [Device("Grid", "fakedev", "Grid MIDI 1")])
+    assert protokol.save_gate(Gate("grid", "fakedev", "in", device="Grid")) is None
+    protokol.refresh_devices()
+    return fake
+
+
+async def test_row_shows_not_plugged_in_in_the_danger_tone(
+    user: User,
+    protokol: ProtokolState,
+    selection: ProtokolSelection,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _unplugged_grid(protokol, monkeypatch, tmp_path)
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    assert _status(user, "grid") == "'Grid' is not plugged in (port 'Grid MIDI 1')"
+    assert "hw-text-danger" in one(user, "gate-health-grid").classes
+
+
+async def test_a_healthy_row_has_the_success_dot(
+    user: User, protokol: ProtokolState, selection: ProtokolSelection
+) -> None:
+    protokol.save_gate(Gate("idle", "fake", "in", options={"port": 2}))
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    assert "hw-text-success" in one(user, "gate-health-idle").classes
+
+
+async def test_monitor_button_disabled_when_unhealthy(
+    user: User,
+    protokol: ProtokolState,
+    selection: ProtokolSelection,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _unplugged_grid(protokol, monkeypatch, tmp_path)
+    protokol.save_gate(Gate("idle", "fake", "in", options={"port": 2}))
+    await open_editor(user, GatesEditor, make_context(protokol, selection))
+    assert one(user, "gate-monitor-grid").style.get("pointer-events") == "none"
+    assert "pointer-events" not in one(user, "gate-monitor-idle").style
+
+
+def test_unhealthy_follows_health(
+    protokol: ProtokolState, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What the editor icon's red dot shows (design §10.6.4)."""
+    from haybale_protokol.editors.gates_editor import any_unhealthy
+
+    protokol.save_gate(Gate("idle", "fake", "in", options={"port": 2}))
+    assert not any_unhealthy(protokol)
+    fake = _unplugged_grid(protokol, monkeypatch, tmp_path)
+    assert any_unhealthy(protokol)
+    fake.present = ["Grid MIDI 1"]
+    protokol.refresh_devices()
+    assert not any_unhealthy(protokol)
+
+
+async def test_icon_shows_a_red_dot_only_while_a_gate_is_broken(
+    user: User,
+    protokol: ProtokolState,
+    selection: ProtokolSelection,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from nicegui import ui
+
+    fake = _unplugged_grid(protokol, monkeypatch, tmp_path)
+    context = make_context(protokol, selection)
+
+    @ui.page("/tab")
+    def page() -> None:
+        editor = GatesEditor(MagicMock(label=None))
+        with ui.column().mark("tab-broken"):
+            editor.draw_tab(context, orientation="vertical")
+        fake.present = ["Grid MIDI 1"]
+        protokol.refresh_devices()
+        with ui.column().mark("tab-healthy"):
+            editor.draw_tab(context, orientation="vertical")
+
+    await user.open("/tab")
+    assert len(user.find(marker="gates-tab-dot").elements) == 1

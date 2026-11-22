@@ -7,7 +7,6 @@ import pytest
 from nicegui.testing import User
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
-from haybale_protokol.editors.device_editor import DeviceEditor
 from haybale_protokol.editors.gates_editor import GatesEditor
 from haybale_protokol.editors.monitor_editor import MonitorEditor
 from haybale_protokol.gates import Gate
@@ -58,7 +57,7 @@ async def test_device_editor_maps_a_midi_port(
     midi.save_gate(Gate("keys", "midi", "in", device="keys"))
     assert midi.use("keys", "in") == "unbound gate: no device 'keys' on this machine"
     selection.select_device("keys")
-    await open_editor(user, DeviceEditor, make_context(midi, selection, admin=True))
+    await open_editor(user, GatesEditor, make_context(midi, selection, admin=True))
     user.find(marker="device-map").click()
     set_value(user, "device-form-protocol", "midi")
     assert source.name in one(user, "device-form-os_id").options
