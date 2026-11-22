@@ -2,7 +2,7 @@
 [project]
 # ── generated from haybale.toml at publish; hand-edits are reported as drift ─
 name = "haybale-protokol-midi"  # from haybale.name
-description = "MIDI for haybale-protokol: Device gates, MIDI Receive and Send nodes"  # from haybale.description
+description = "MIDI for haybale-protokol: Device gates, MIDI Event and Send MIDI nodes"  # from haybale.description
 keywords = ["midi", "control", "protocol", "device"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
@@ -13,7 +13,7 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 
 # CANON — pip requirements. Add third-party packages and sibling haybales here.
-dependencies = ["haywire-core>=0.5.1", "haybale-core>=0.4.2", "haybale-protokol", "python-rtmidi==1.5.8", "mido==1.3.3"]
+dependencies = ["haywire-core>=0.6.0", "haybale-core>=0.6.0", "haybale-protokol", "python-rtmidi==1.5.8", "mido==1.3.3"]
 
 # The key is the entry-point name (unique within the group; need not match the
 # library id). The value is <module>:<class>.

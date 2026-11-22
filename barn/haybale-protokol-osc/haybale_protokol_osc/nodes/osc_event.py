@@ -1,4 +1,4 @@
-"""OSC Receive — runs its flow for each OSC message on an input gate that matches its address."""
+"""OSC Event — runs its flow for each OSC message on an input gate that matches its address."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from haywire.api import (
 from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for, resolve_dispatch
 from haybale_protokol.drivers import Message
 from haybale_protokol.gate_names import gate_names, named_status
-from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
+from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol_osc.arg_pins import ARG_ID, ArgPins
 from haybale_protokol_osc.pattern import AddressPattern, compile_pattern
@@ -70,13 +70,13 @@ _REBUILT = r"^(args|arg_\d+|match_\d+|timetag|status)$"
 
 
 @node(
-    label="OSC Receive",
+    label="OSC Event",
     description="Triggered for each OSC message on an input gate that matches the address pattern",
     menu="protokol/osc",
     search_tags=["osc", "receive", "control", "network", "protokol", "touchosc"],
     node_type=NodeType.EVENT,
 )
-class OscReceiveNode(ArgPins, BaseNode):
+class OscEventNode(ArgPins, BaseNode):
     """Runs its flow for each OSC message on its gate that matches its address.
 
     `Gate` names an input gate in the project's Gate file (`.haywire/protokol.toml`). `Address`
@@ -109,7 +109,7 @@ class OscReceiveNode(ArgPins, BaseNode):
                 default="",
                 label="Gate",
                 description=GATE_HELP,
-                widget=GateSelectWidget.config(properties={"protocol": "osc", "direction": "in"}),
+                widget=GateMenuWidget.config(properties={"protocol": "osc", "direction": "in"}),
             )
         )
         self.add(

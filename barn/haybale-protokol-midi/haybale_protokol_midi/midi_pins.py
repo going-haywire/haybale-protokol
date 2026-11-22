@@ -1,4 +1,4 @@
-"""The pins of the MIDI nodes, by kind: shared by MIDI Receive and MIDI Send."""
+"""The pins of the MIDI nodes, by kind: shared by MIDI Event and Send MIDI."""
 
 from __future__ import annotations
 

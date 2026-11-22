@@ -1,4 +1,4 @@
-"""MIDI Receive: a filter of kind, channel and number; outlets follow the kind."""
+"""MIDI Event: a filter of kind, channel and number; outlets follow the kind."""
 
 from pathlib import Path
 from typing import Any
@@ -7,7 +7,7 @@ import pytest
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.gates import Gate
-from haybale_protokol_midi.nodes.midi_receive import MidiReceiveNode
+from haybale_protokol_midi.nodes.midi_event import MidiEventNode
 from haywire.core.graph.base import BaseGraph
 from haywire.core.graph.scheduler import SyncScheduler
 from tests.helpers import make_node
@@ -30,7 +30,7 @@ FILTER_OUTLETS = {"channel", "note", "controller"}
 
 
 def _receive(graph: Any, kind: str = "cc", channel: int = 1, number: int = -1, gate: str = "keys") -> Any:
-    wrapper = make_node(graph, MidiReceiveNode.class_identity.registry_key)
+    wrapper = make_node(graph, MidiEventNode.class_identity.registry_key)
     node = wrapper.node
     node.ports["gate"].set_value(gate)
     node.ports["kind"].set_value(kind)

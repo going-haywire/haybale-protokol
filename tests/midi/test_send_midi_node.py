@@ -1,4 +1,4 @@
-"""MIDI Send: inlets follow the kind; one message to every listed gate per tick."""
+"""Send MIDI: inlets follow the kind; one message to every listed gate per tick."""
 
 from pathlib import Path
 from typing import Any
@@ -8,7 +8,7 @@ import pytest
 
 from haybale_protokol.devices import Device, device_list_path, save_devices
 from haybale_protokol.gates import Gate
-from haybale_protokol_midi.nodes.midi_send import MidiSendNode
+from haybale_protokol_midi.nodes.send_midi import SendMidiNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_node
 from tests.midi.conftest import Sink, needs_virtual, wait_for
@@ -30,7 +30,7 @@ KNOWN = {"channel", "note", "controller", *(i for inlets in KIND_INLETS.values()
 
 
 def _send(graph: Any, kind: str = "cc", channel: int = 1, number: int = -1, gate: str = "synth") -> Any:
-    node = make_node(graph, MidiSendNode.class_identity.registry_key).node
+    node = make_node(graph, SendMidiNode.class_identity.registry_key).node
     node.ports["gate"].set_value(gate)
     node.ports["kind"].set_value(kind)
     node.ports["filter_channel"].set_value(channel)

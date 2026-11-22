@@ -1,5 +1,5 @@
 """
-OSC for haybale-protokol: the OSC Protocol driver and the OSC Receive and Send nodes.
+OSC for haybale-protokol: the OSC Protocol driver and the OSC Event and Send OSC nodes.
 
 Add your custom components in the corresponding folders:
 - nodes/      — node definitions

@@ -58,7 +58,7 @@
 
 ## Example dialogue
 
-> **Dev:** "The OSC Receive node in this graph says `touchosc-in` is missing — is that a crash?"
+> **Dev:** "The OSC Event node in this graph says `touchosc-in` is missing — is that a crash?"
 > **Domain expert:** "No. The graph only stores the **Gate** name. This project has no **Input gate** called `touchosc-in` yet, so the node shows it as its status."
 > **Dev:** "Can two Receive nodes use the same **Input gate**?"
 > **Domain expert:** "Yes. That's the point of a **Gate**: one place opens the port, and any number of nodes read from it."

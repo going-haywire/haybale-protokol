@@ -10,8 +10,8 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.udp_client import SimpleUDPClient
 
 from haybale_protokol.gates import Gate
-from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode
-from haybale_protokol_osc.nodes.osc_send import OscSendNode
+from haybale_protokol_osc.nodes.osc_event import OscEventNode
+from haybale_protokol_osc.nodes.send_osc import SendOscNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_node
 from tests.osc.conftest import free_udp_port
@@ -42,7 +42,7 @@ def test_choices_follow_protocol_and_direction(library_system: Any, tmp_path: Pa
 
 def test_receive_from_two_gates(graph: BaseGraph, tmp_path: Path) -> None:
     port_a, port_b = free_udp_port(), free_udp_port()
-    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, OscEventNode.class_identity.registry_key)
     receive.node.ports["gate"].set_value("a, b")
     runs = record(receive, "from_gate", "args")
     with protokol_project(tmp_path, _in("a", port_a), _in("b", port_b)), running(graph):
@@ -55,7 +55,7 @@ def test_receive_from_two_gates(graph: BaseGraph, tmp_path: Path) -> None:
 
 def test_receive_reports_a_missing_gate_and_uses_the_rest(graph: BaseGraph, tmp_path: Path) -> None:
     port = free_udp_port()
-    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, OscEventNode.class_identity.registry_key)
     receive.node.ports["gate"].set_value("a, nope")
     runs = record(receive, "from_gate")
     with protokol_project(tmp_path, _in("a", port)), running(graph):
@@ -80,7 +80,7 @@ def test_send_to_two_gates_and_skip_a_missing_one(graph: BaseGraph, tmp_path: Pa
     b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     for sock in (a, b):
         sock.bind(("127.0.0.1", 0))
-    node = make_node(graph, OscSendNode.class_identity.registry_key).node
+    node = make_node(graph, SendOscNode.class_identity.registry_key).node
     node.ports["gate"].set_value("a, b, nope")
     node.ports["address"].set_value("/x")
     context = MagicMock()
@@ -104,7 +104,7 @@ def test_only_changes_retries_a_gate_that_failed(graph: BaseGraph, tmp_path: Pat
     b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     for sock in (a, b):
         sock.bind(("127.0.0.1", 0))
-    node = make_node(graph, OscSendNode.class_identity.registry_key).node
+    node = make_node(graph, SendOscNode.class_identity.registry_key).node
     node.ports["gate"].set_value("a, b")
     node.ports["address"].set_value("/x")
     node.sending.only_changes = True
@@ -130,9 +130,9 @@ def test_only_changes_retries_a_gate_that_failed(graph: BaseGraph, tmp_path: Pat
 
 def test_statuses_name_the_gate_that_failed(graph: BaseGraph, tmp_path: Path) -> None:
     port = free_udp_port()
-    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, OscEventNode.class_identity.registry_key)
     receive.node.ports["gate"].set_value("a, m")
-    send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0)).node
+    send = make_node(graph, SendOscNode.class_identity.registry_key, position=(400, 0)).node
     send.ports["gate"].set_value("m")
     gates = (_in("a", port), Gate("m", "dmx", "in"), Gate("m", "dmx", "out"))
     with protokol_project(tmp_path, gates[0], gates[1]), running(graph):

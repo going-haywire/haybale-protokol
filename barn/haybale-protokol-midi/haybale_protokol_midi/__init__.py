@@ -1,5 +1,5 @@
 """
-MIDI for haybale-protokol: the MIDI Protocol driver and the MIDI Receive and Send nodes.
+MIDI for haybale-protokol: the MIDI Protocol driver and the MIDI Event and Send MIDI nodes.
 
 Add your custom components in the corresponding folders:
 - nodes/      — node definitions

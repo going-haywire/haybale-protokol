@@ -1,4 +1,4 @@
-"""MIDI Receive — runs its flow for each MIDI message on its gates that passes its filter."""
+"""MIDI Event — runs its flow for each MIDI message on its gates that passes its filter."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from haywire.api import (
     BaseNode,
     ExecutionContext,
     NodeType,
-    SelectWidget,
+    MenuWidget,
     bag,
     node,
 )
@@ -22,7 +22,7 @@ from haybale_protokol.dispatch import ReceiveDispatchSettings, event_source_for,
 from haybale_protokol.drivers import Message
 from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
-from haybale_protokol.widgets.gate_select_widget import GateSelectWidget
+from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_midi.midi_messages import CHANNEL_KINDS, KINDS, STREAM_KINDS
 from haybale_protokol_midi.midi_pins import ARG_NAMES, KIND_PINS, NUMBER_PIN, number_filter
 
@@ -67,13 +67,13 @@ NUMBER_HELP = (
 
 
 @node(
-    label="MIDI Receive",
+    label="MIDI Event",
     description="Triggered for each MIDI message on its gates that passes its kind, channel and number",
     menu="protokol/midi",
     search_tags=["midi", "receive", "note", "cc", "controller", "protokol"],
     node_type=NodeType.EVENT,
 )
-class MidiReceiveNode(BaseNode):
+class MidiEventNode(BaseNode):
     """Runs its flow for each MIDI message of its kind (and channel and number) on its gates.
 
     Kind, Channel and Number are the node's filter, and its outlets follow it. Values (cc, pitch
@@ -97,7 +97,7 @@ class MidiReceiveNode(BaseNode):
                 default="",
                 label="Gate",
                 description=GATE_HELP,
-                widget=GateSelectWidget.config(properties={"protocol": "midi", "direction": "in"}),
+                widget=GateMenuWidget.config(properties={"protocol": "midi", "direction": "in"}),
             )
         )
         self.add(
@@ -106,7 +106,7 @@ class MidiReceiveNode(BaseNode):
                 default="cc",
                 label="Kind",
                 description=KIND_HELP,
-                widget=SelectWidget.config(properties={"options": list(KINDS)}),
+                widget=MenuWidget.config(properties={"options": list(KINDS)}),
                 on_change="hb_rebuild",
             )
         )

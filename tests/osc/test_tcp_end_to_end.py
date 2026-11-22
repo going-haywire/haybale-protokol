@@ -1,4 +1,4 @@
-"""OSC Receive and Send over TCP gates, in a running graph."""
+"""OSC Event and Send OSC over TCP gates, in a running graph."""
 
 import socket
 from pathlib import Path
@@ -10,8 +10,8 @@ from pythonosc.osc_message import OscMessage
 from haybale_protokol.gates import Gate
 from haybale_protokol_osc.driver import build_message
 from haybale_protokol_osc.framing import FrameReader, encode_frame
-from haybale_protokol_osc.nodes.osc_receive import OscReceiveNode
-from haybale_protokol_osc.nodes.osc_send import OscSendNode
+from haybale_protokol_osc.nodes.osc_event import OscEventNode
+from haybale_protokol_osc.nodes.send_osc import SendOscNode
 from haywire.core.graph.base import BaseGraph
 from tests.helpers import make_edge, make_node
 from tests.osc.conftest import TestPeer
@@ -21,11 +21,11 @@ pytestmark = pytest.mark.integration
 
 
 def _forwarder(graph: Any, gate: str) -> tuple[Any, Any]:
-    receive = make_node(graph, OscReceiveNode.class_identity.registry_key)
+    receive = make_node(graph, OscEventNode.class_identity.registry_key)
     receive.node.ports["gate"].set_value(gate)
     receive.node.ports["address"].set_value("/in")
     receive.node.ports["arg_shape"].set_value("f")
-    send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0))
+    send = make_node(graph, SendOscNode.class_identity.registry_key, position=(400, 0))
     send.node.ports["gate"].set_value(gate)
     send.node.ports["address"].set_value("/out")
     send.node.ports["arg_shape"].set_value("f")
@@ -120,14 +120,14 @@ def test_restart_within_grace_keeps_peer(graph: BaseGraph, tmp_path: Path) -> No
 
 
 def test_missing_peer_does_not_block_start(graph: BaseGraph, tmp_path: Path) -> None:
-    from haybale_core.nodes.events.begin_play import BeginPlayNode
+    from haybale_core.nodes.events.begin_play_event import BeginPlayEventNode
 
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = int(probe.getsockname()[1])
-    send = make_node(graph, OscSendNode.class_identity.registry_key, position=(400, 0))
+    send = make_node(graph, SendOscNode.class_identity.registry_key, position=(400, 0))
     send.node.ports["gate"].set_value("desk")
-    begin = make_node(graph, BeginPlayNode.class_identity.registry_key)
+    begin = make_node(graph, BeginPlayEventNode.class_identity.registry_key)
     assert make_edge(graph, begin.node_id, "exec", send.node_id, "exec").state.is_valid()
     with protokol_project(tmp_path, _client_gate(port, "1.1")), running(graph):
         assert wait_until(lambda: "dropped 1" in str(send.node.value("status")))
