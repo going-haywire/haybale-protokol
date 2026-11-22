@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -38,38 +39,71 @@ BACKEND = _backend_present()
 needs_backend = pytest.mark.skipif(not BACKEND, reason="this machine has no MIDI system")
 
 
-class Source:
-    """A virtual port that sends: other programs see it as a MIDI input."""
+def _listed(port: str, kind: Any) -> str:
+    """The name other programs see for a virtual port opened as ``port``.
 
-    def __init__(self, name: str | None = None) -> None:
-        self.name = name or f"protokol-src-{uuid.uuid4().hex[:6]}"
-        self._out = rtmidi.MidiOut()
-        self._out.open_virtual_port(self.name)
-        time.sleep(0.1)
+    CoreMIDI lists it as opened; ALSA lists it as ``RtMidi… Client:<port> <client>:<port>``.
+    """
+    alsa = re.compile(rf":{re.escape(port)} \d+:\d+$")
+    deadline = time.monotonic() + 1.0
+    while True:
+        names = kind().get_ports()
+        found = [name for name in names if name == port or alsa.search(name)]
+        if found or time.monotonic() > deadline:
+            break
+        time.sleep(0.02)
+    assert len(found) == 1, f"virtual port {port!r} listed as {found} among {names}"
+    return found[0]
+
+
+class Source:
+    """A virtual port that sends: other programs see it as a MIDI input.
+
+    ``port`` is the name it was opened with; ``name`` is the name the system lists for it.
+    """
+
+    def __init__(self, port: str | None = None) -> None:
+        self.port = port or f"protokol-src-{uuid.uuid4().hex[:6]}"
+        self._out: Any = rtmidi.MidiOut()
+        self._out.open_virtual_port(self.port)
+        self.name = _listed(self.port, rtmidi.MidiIn)
 
     def send(self, *data: int) -> None:
         self._out.send_message(list(data))
 
     def close(self) -> None:
-        self._out.close_port()
+        """Remove the port, like unplugging it (on ALSA ``close_port`` alone leaves it listed).
+
+        Safe to call twice: a test may unplug the port before the fixture's own close.
+        """
+        if self._out is None:
+            return
+        out, self._out = self._out, None
+        out.close_port()
+        out.delete()
 
 
 class Sink:
     """A virtual port that receives: other programs see it as a MIDI output."""
 
     def __init__(self) -> None:
-        self.name = f"protokol-sink-{uuid.uuid4().hex[:6]}"
+        self.port = f"protokol-sink-{uuid.uuid4().hex[:6]}"
         self.received: list[list[int]] = []
-        self._in = rtmidi.MidiIn()
+        self._in: Any = rtmidi.MidiIn()
         self._in.ignore_types(sysex=False, timing=False, active_sense=True)
         self._in.set_callback(lambda event, _data=None: self.received.append(list(event[0])))
-        self._in.open_virtual_port(self.name)
-        time.sleep(0.1)
+        self._in.open_virtual_port(self.port)
+        self.name = _listed(self.port, rtmidi.MidiOut)
 
     def close(self) -> None:
-        self._in.cancel_callback()
+        """Remove the port, like unplugging it; safe to call twice."""
+        if self._in is None:
+            return
+        midi, self._in = self._in, None
+        midi.cancel_callback()
         time.sleep(0.02)
-        self._in.close_port()
+        midi.close_port()
+        midi.delete()
 
 
 @pytest.fixture

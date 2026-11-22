@@ -24,3 +24,4 @@ Final: minor (deferred): #6 hostname lookup not bounded by connect timeout; clos
 Final: minor (deferred): #7 IPv6: sockets are AF_INET only; bracketed hosts retry forever without a hint
 Final: minor (deferred): #8 changing a gate's framing within the grace period reuses the old framing silently; Line.gate can name a deleted gate
 Final: minor (deferred): #9 "reconnecting (1)" shown for a peer never reached
+Follow-up (2026-11-22): fixed #9 (a peer never reached shows 'cannot reach … (tried n)' with the reason)

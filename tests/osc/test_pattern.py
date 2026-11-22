@@ -30,6 +30,12 @@ def test_negated_range() -> None:
     assert pattern.match("/x/b") is None
 
 
+def test_negated_range_never_matches_slash() -> None:
+    pattern = compile_pattern("/x[!a]y")
+    assert pattern.match("/x/y") is None
+    assert pattern.match("/xby") == ("b",)
+
+
 def test_alternatives() -> None:
     pattern = compile_pattern("/{left,right}/gain")
     assert pattern.match("/left/gain") == ("left",)

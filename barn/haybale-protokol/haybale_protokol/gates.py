@@ -15,6 +15,8 @@ an option its Protocol driver reads.
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -116,7 +118,11 @@ def write_gate(path: Path, gate: Gate, *, replaces: str | None = None) -> None:
         document["gates"] = tomlkit.table(is_super_table=True)
     tables = document["gates"]
     if replaces is not None and replaces != gate.name and replaces in tables:
-        del tables[replaces]
+        renamed = _renamed_in_text(path, document, replaces, gate.name)
+        if renamed is not None:
+            document, tables = renamed, renamed["gates"]
+        else:
+            del tables[replaces]
     _put_table(tables, gate)
     path.parent.mkdir(parents=True, exist_ok=True)
     write_toml(path, document)
@@ -129,8 +135,92 @@ def remove_gate(path: Path, name: str) -> None:
     document = read_toml(path)
     tables = document.get("gates")
     if tables is not None and name in tables:
-        del tables[name]
-        write_toml(path, document)
+        removed = _removed_in_text(path, document, name)
+        if removed is None:
+            del tables[name]
+            removed = document
+        write_toml(path, removed)
+
+
+# -- comment-keeping text edits -------------------------------------------------------
+#
+# tomlkit stores a comment written above a table as the tail of the table before it, so
+# deleting a table through tomlkit drops the next gate's comment, and a rename (delete and
+# add) loses the gate's comments and moves it to the end. These edit the text instead, with
+# one rule: the comment lines directly above a gate's header belong to that gate. The result
+# is parsed back and checked; anything unexpected falls back to the tomlkit edit.
+
+_ANY_HEADER = re.compile(r"^\s*\[")
+_GATE_HEADER = re.compile(
+    r"""^(?P<lead>\s*\[\s*gates\s*\.\s*)(?P<key>[A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*"|'[^']*')(?P<rest>\s*\].*)$"""
+)
+_COMMENT = re.compile(r"^\s*#")
+_BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _header_name(key: str) -> str:
+    if key.startswith('"'):
+        return str(json.loads(key))
+    return key[1:-1] if key.startswith("'") else key
+
+
+def _toml_key(name: str) -> str:
+    return name if _BARE_KEY.fullmatch(name) else json.dumps(name, ensure_ascii=False)
+
+
+def _header_line(lines: list[str], name: str) -> int | None:
+    found = [
+        i
+        for i, line in enumerate(lines)
+        if (m := _GATE_HEADER.match(line)) and _header_name(m["key"]) == name
+    ]
+    return found[0] if len(found) == 1 else None
+
+
+def _checked(text: str, before: Any, expected: dict[str, Any]) -> Any | None:
+    """``text`` parsed, if its gates are exactly ``expected`` and the rest of ``before`` is unchanged."""
+    try:
+        after = tomlkit.parse(text)
+    except Exception:
+        return None
+    rest = {key: value for key, value in to_builtin(before).items() if key != "gates"}
+    if {key: value for key, value in to_builtin(after).items() if key != "gates"} != rest:
+        return None
+    return after if to_builtin(after.get("gates", {})) == expected else None
+
+
+def _renamed_in_text(path: Path, document: Any, old: str, new: str) -> Any | None:
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    index = _header_line(lines, old)
+    if index is None:
+        return None
+    match = _GATE_HEADER.match(lines[index].rstrip("\r\n"))
+    assert match is not None
+    ending = lines[index][len(lines[index].rstrip("\r\n")) :]
+    lines[index] = f"{match['lead']}{_toml_key(new)}{match['rest']}{ending}"
+    gates = to_builtin(document["gates"])
+    expected = {(new if key == old else key): value for key, value in gates.items()}
+    return _checked("".join(lines), document, expected)
+
+
+def _removed_in_text(path: Path, document: Any, name: str) -> Any | None:
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    start = _header_line(lines, name)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if _ANY_HEADER.match(lines[i])), len(lines))
+    # The comment and blank lines ending the block belong to the next table (or end the file).
+    while end - 1 > start and (_COMMENT.match(lines[end - 1]) or not lines[end - 1].strip()):
+        end -= 1
+    while start > 0 and _COMMENT.match(lines[start - 1]):  # the gate's own comment goes with it
+        start -= 1
+    kept = lines[:start] + lines[end:]
+    if start > 0 and start < len(kept) and not kept[start - 1].strip() and not kept[start].strip():
+        del kept[start]  # one blank line between neighbours, not two
+    while kept and not kept[-1].strip():  # no blank lines left at the end of the file
+        kept.pop()
+    expected = {key: value for key, value in to_builtin(document["gates"]).items() if key != name}
+    return _checked("".join(kept), document, expected)
 
 
 def _put_table(tables: Any, gate: Gate) -> None:

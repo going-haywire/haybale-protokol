@@ -39,7 +39,8 @@ GATE_HELP = (
 )
 SHAPE_HELP = (
     "The Arg shape: one token per argument inlet, in inlet order. i: int; f: float; s: text; "
-    "b: blob; T: bool; r: colour; vi2–vi4 and vf2–vf4: a vector, sent as its components; m3, m4: "
+    "b: blob; T: bool; r: colour (#rgb, #rgba, #rrggbb or #rrggbbaa); vi2–vi4 and vf2–vf4: a vector, "
+    "sent as its components; m3, m4: "
     "a matrix, sent as 9 or 16 floats. Use d or h instead of f or i for 64-bit numbers. There is "
     "no _: every inlet is sent, and an unconnected inlet sends its own value. Typing the shape "
     "rebuilds the inlets; connecting the + pin at the bottom adds a token for the connected type, "

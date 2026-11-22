@@ -63,3 +63,4 @@ Final: minor (deferred): #14 host resolved on every send; no SO_BROADCAST
 Final: minor (deferred): #15 non-string bind raises TypeError out of use()
 Final: minor (deferred): #16 arg_released stash only grows
 Final: minor (deferred): #17 empty gate field reads "no gate named ''"
+Follow-up (2026-11-22): fixed #11 ([!x] never matches '/'; empty [] / [!] rejected) and #13 (#rgb, #rgba, #rrggbb, #rrggbbaa)

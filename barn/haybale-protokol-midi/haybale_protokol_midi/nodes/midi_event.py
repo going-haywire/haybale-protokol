@@ -230,7 +230,17 @@ class MidiEventNode(BaseNode):
 
     def _status(self) -> str:
         parts = [named_status(binding.gate_name, binding.status) for binding in self._bindings]
-        return " · ".join(parts) or "no gate set"
+        problem = self._filter_problem()
+        return " · ".join([problem, *parts] if problem else parts) or "no gate set"
+
+    def _filter_problem(self) -> str | None:
+        """Why no message can pass the filter, or ``None``: such a node would never fire."""
+        kind, channel, number = self._filter()
+        if kind in CHANNEL_KINDS and not 0 <= channel <= 16:
+            return f"Channel must be 0 (any) or 1–16, not {channel}"
+        if kind in NUMBER_PIN and not -1 <= number <= 127:
+            return f"Number must be −1 (any) or 0–127, not {number}"
+        return None
 
     # -- helpers -----------------------------------------------------------------
 

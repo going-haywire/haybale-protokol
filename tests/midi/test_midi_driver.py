@@ -128,7 +128,7 @@ def test_an_unplugged_input_says_so_and_a_new_use_reopens(state: ProtokolState, 
     first.close()
     assert wait_for(lambda: "port gone" in use.line.status, timeout=4.0)
     use.release()
-    second = Source(name)
+    second = Source(first.port)
     try:
         got: list[Message] = []
         again = state.use("keys", "in", got.append)
