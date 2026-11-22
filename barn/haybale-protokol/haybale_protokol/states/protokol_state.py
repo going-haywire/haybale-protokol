@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
 import threading
-from collections.abc import Callable
+import time
+import weakref
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -49,6 +52,12 @@ _GATE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 #: The grace period when the setting cannot be read.
 DEFAULT_GRACE_S = 2.0
+#: Seconds between device checks when the setting cannot be read.
+DEFAULT_WATCH_S = 1.0
+#: The device watch's thread name.
+WATCH_THREAD = "protokol-device-watch"
+
+HealthListener = Callable[[], None]
 
 
 @state(
@@ -81,8 +90,18 @@ class ProtokolState(AppState):
         self._gates_stamp: tuple[float, int] | None = None
         self._open_failures: dict[str, tuple[str, str]] = {}
         """The last failed open per gate name, as ``(protocol, reason)``; cleared by a good open."""
+        self.watch_s: Callable[[], float] = _watch_from_settings
+        """Seconds between checks of which Devices are present."""
+        self._seen: dict[str, tuple[tuple[str, str], ...]] = {}
+        """The last listing of each device-using protocol: ``(os name, description)`` pairs."""
+        self._listeners: list[weakref.WeakMethod[HealthListener] | HealthListener] = []
+        self._watch: threading.Thread | None = None
+        self._watch_stop = threading.Event()
+        self._poke = threading.Event()
+        """Set by every change; the watch thread then tells the health listeners."""
 
     def on_disable(self) -> None:
+        self._stop_watch()
         for line in self.lines():
             line.close()
 
@@ -96,14 +115,20 @@ class ProtokolState(AppState):
             self._forget_failures(protocol=driver.protocol)
         if previous is not None and previous is not driver:
             self._close_lines(driver.protocol)
+            _close_driver(previous)
+        if uses_devices(driver):
+            self._start_watch()
         self._changed()
 
     def unregister_driver(self, protocol: str) -> None:
         """Remove the driver for ``protocol`` and close its Lines at once."""
         with self._lock:
-            self._drivers.pop(protocol, None)
+            driver = self._drivers.pop(protocol, None)
             self._forget_failures(protocol=protocol)
+            self._seen.pop(protocol, None)
         self._close_lines(protocol)
+        if driver is not None:
+            _close_driver(driver)
         self._changed()
 
     def protocols(self) -> list[str]:
@@ -279,6 +304,37 @@ class ProtokolState(AppState):
         tap.use = result
         return tap
 
+    # -- the device watch and health listeners --------------------------------------------
+
+    def watch_health(self, callback: HealthListener) -> Callable[[], None]:
+        """Call ``callback`` after any change that may change a gate's health; returns ``unwatch``.
+
+        Called on the watch thread, outside every lock, so it may call ``health``; it must not
+        block. A bound method is held weakly, so a deleted node does not stay alive through it.
+        """
+        entry: weakref.WeakMethod[HealthListener] | HealthListener
+        entry = weakref.WeakMethod(callback) if hasattr(callback, "__self__") else callback
+        with self._lock:
+            self._listeners.append(entry)
+        self._start_watch()
+
+        def unwatch() -> None:
+            with self._lock:
+                if entry in self._listeners:
+                    self._listeners.remove(entry)
+
+        return unwatch
+
+    def refresh_devices(self) -> None:
+        """Check which Devices are present now, for every device-using driver (the refresh button)."""
+        self._check_devices(only_used=False)
+
+    def present_devices(self, protocol: str) -> frozenset[str] | None:
+        """The OS names ``protocol``'s driver listed at its last check, or ``None`` if never checked."""
+        with self._lock:
+            seen = self._seen.get(protocol)
+        return None if seen is None else frozenset(name for name, _ in seen)
+
     # -- editing the Gate file -----------------------------------------------------------
 
     def save_gate(self, gate: Gate, *, replaces: str | None = None) -> str | None:
@@ -382,10 +438,102 @@ class ProtokolState(AppState):
         """Whether ``device``'s port is on this machine now; ``None`` when the driver cannot tell."""
         if not uses_devices(driver):
             return None
-        seen = list_devices(driver)
+        with self._lock:
+            seen: Sequence[tuple[str, str]] | None = self._seen.get(driver.protocol)
         if seen is None:
-            return None
+            seen = list_devices(driver)
+            if seen is None:
+                return None
+            with self._lock:
+                self._seen.setdefault(driver.protocol, tuple(seen))
         return find_device(driver, device.os_id, seen) is not None
+
+    def _check_devices(self, *, only_used: bool) -> bool:
+        """List the present devices of each device-using driver; report a change. Returns whether one did.
+
+        With ``only_used``, only drivers some gate names a Device of (the watch's tick).
+        """
+        with self._lock:
+            drivers = [d for d in self._drivers.values() if uses_devices(d)]
+        if only_used and drivers:
+            try:
+                gates = self.gates()
+            except RuntimeError:  # no project known yet (the app not initialised): no gate to watch for
+                return False
+            used = {g.protocol for g in gates.values() if g.device is not None}
+            drivers = [d for d in drivers if d.protocol in used]
+        changed = False
+        for driver in drivers:
+            try:
+                seen = list_devices(driver)
+            except Exception:
+                logger.debug("listing %s devices failed", driver.protocol, exc_info=True)
+                continue
+            if seen is None:
+                continue
+            listing = tuple(sorted(seen))
+            with self._lock:
+                if self._seen.get(driver.protocol) == listing:
+                    continue
+                self._seen[driver.protocol] = listing
+                self._forget_failures(protocol=driver.protocol)
+            changed = True
+        if changed:
+            self._changed()
+        return changed
+
+    def _start_watch(self) -> None:
+        with self._lock:
+            if self._watch is not None and self._watch.is_alive():
+                return
+            self._watch_stop.clear()
+            # The app's ambient context (the workspace root the Gate file is found from) is a
+            # context variable, which a new thread does not inherit: run in a copy of the caller's.
+            context = contextvars.copy_context()
+            self._watch = threading.Thread(
+                target=context.run, args=(self._run_watch,), name=WATCH_THREAD, daemon=True
+            )
+            self._watch.start()
+
+    def _stop_watch(self) -> None:
+        with self._lock:
+            watch, self._watch = self._watch, None
+        self._watch_stop.set()
+        self._poke.set()
+        if watch is not None and watch is not threading.current_thread():
+            watch.join(timeout=2.0)
+
+    def _run_watch(self) -> None:
+        """Check the devices every ``watch_s`` and tell the listeners of every change, until stopped."""
+        next_check = time.monotonic() + self.watch_s()
+        while not self._watch_stop.is_set():
+            self._poke.wait(timeout=max(0.0, next_check - time.monotonic()))
+            if self._watch_stop.is_set():
+                return
+            if self._poke.is_set():
+                self._poke.clear()
+                self._notify()
+            if time.monotonic() >= next_check:
+                try:
+                    self._check_devices(only_used=True)
+                except Exception:
+                    logger.exception("device check failed")
+                next_check = time.monotonic() + self.watch_s()
+
+    def _notify(self) -> None:
+        with self._lock:
+            entries = list(self._listeners)
+        for entry in entries:
+            callback = entry() if isinstance(entry, weakref.WeakMethod) else entry
+            if callback is None:
+                with self._lock:
+                    if entry in self._listeners:
+                        self._listeners.remove(entry)
+                continue
+            try:
+                callback()
+            except Exception:
+                logger.exception("health listener failed")
 
     def _failed(self, driver: ProtocolDriver, gate: Gate, device: Device | None, reason: str) -> str:
         """Remember a failed open of ``gate`` for its health, and return ``reason``.
@@ -434,6 +582,7 @@ class ProtokolState(AppState):
         """
         from nicegui import core
 
+        self._poke.set()
         if not hasattr(self, "_dispatcher"):
             return  # not bound to an app (a standalone instance): nobody to tell
         loop = core.loop
@@ -452,6 +601,26 @@ def _line_conflict(driver: ProtocolDriver, gate: Gate, line: Line) -> str | None
         if mine.get(option) != theirs.get(option):
             return f"gate '{gate.name}': {option} differs from gate '{first.name}' on the same line"
     return None
+
+
+def _close_driver(driver: ProtocolDriver) -> None:
+    """Call the driver's optional ``close()`` (its device-listing probes); never raises."""
+    close = getattr(driver, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            logger.debug("closing the %s driver failed", driver.protocol, exc_info=True)
+
+
+def _watch_from_settings() -> float:
+    from haybale_protokol.settings.protokol_settings import ProtokolSettings
+
+    try:
+        return max(0.1, float(ProtokolSettings().device_watch_s))
+    except Exception:
+        logger.debug("device_watch_s unreadable; using %s", DEFAULT_WATCH_S, exc_info=True)
+        return DEFAULT_WATCH_S
 
 
 def _grace_from_settings() -> float:

@@ -56,6 +56,7 @@ def test_working_while_used(state: ProtokolState, midiish: FakeDeviceDriver) -> 
 
 def test_not_plugged_in(state: ProtokolState, midiish: FakeDeviceDriver) -> None:
     midiish.present = []
+    state.refresh_devices()
     assert state.health("grid-in") == GateHealth(
         "not plugged in", "'Grid' is not plugged in (port 'Grid:Grid MIDI 1 28:0')"
     )
@@ -67,6 +68,7 @@ def test_a_changed_os_suffix_still_counts_as_plugged_in(
     """The driver's match_device decides, as when opening (ALSA renumbers ports on replug)."""
     midiish.present = ["Grid:Grid MIDI 1 32:0"]
     midiish.match_device = lambda os_id, names: names[0] if names else None  # type: ignore[attr-defined]
+    state.refresh_devices()
     assert state.health("grid-in").state == "closed"
 
 
@@ -122,9 +124,11 @@ def test_not_plugged_in_wins_over_the_open_failure_it_caused(
 ) -> None:
     """Opening an absent port fails; health says why in the user's terms, and recovers on replug."""
     midiish.present = []
+    state.refresh_devices()
     assert isinstance(state.use("grid-in", "in"), str)
     assert state.health("grid-in").state == "not plugged in"
     midiish.present = ["Grid:Grid MIDI 1 28:0"]
+    state.refresh_devices()
     assert state.health("grid-in").state == "closed"
 
 
