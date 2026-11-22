@@ -131,4 +131,5 @@ def test_missing_peer_does_not_block_start(graph: BaseGraph, tmp_path: Path) -> 
     assert make_edge(graph, begin.node_id, "exec", send.node_id, "exec").state.is_valid()
     with protokol_project(tmp_path, _client_gate(port, "1.1")), running(graph):
         assert wait_until(lambda: "dropped 1" in str(send.node.value("status")))
-    assert "connecting" in str(send.node.value("status"))
+    status = str(send.node.value("status"))
+    assert "connecting to tcp" in status or "cannot reach tcp" in status

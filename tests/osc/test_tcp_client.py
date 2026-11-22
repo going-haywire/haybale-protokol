@@ -63,9 +63,23 @@ def test_sends_while_disconnected_are_dropped_and_counted() -> None:
         client.close()
 
 
-def test_reconnecting_status_counts_attempts() -> None:
-    client, _ = _client(_free_tcp_port(), "1.1")
+def test_a_peer_never_reached_says_cannot_reach() -> None:
+    port = _free_tcp_port()
+    client, _ = _client(port, "1.1")
     try:
+        assert _wait(lambda: "(tried 2)" in client.status, timeout=3.0)
+        assert client.status.startswith(f"cannot reach tcp 127.0.0.1:{port}: ")
+        assert "reconnecting" not in client.status
+    finally:
+        client.close()
+
+
+def test_reconnecting_status_counts_attempts() -> None:
+    peer = TestPeer("1.1")
+    client, _ = _client(peer.port, "1.1")
+    try:
+        assert _wait(lambda: client.connected)
+        peer.stop()
         assert _wait(lambda: "reconnecting (2)" in client.status, timeout=3.0)
     finally:
         client.close()

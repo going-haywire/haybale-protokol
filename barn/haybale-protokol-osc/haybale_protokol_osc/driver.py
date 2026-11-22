@@ -265,6 +265,10 @@ class TcpClientConnection:
         self.bad = 0
         self.attempts = 0
         """Failed or lost connections since the last good one."""
+        self.reached = False
+        """True once a connection succeeded: retries are then reconnecting, not first tries."""
+        self.last_error = ""
+        """Why the last connection attempt failed (``connection refused``, ``timed out``...)."""
         self.thread: threading.Thread | None = None
         self._sock: socket.socket | None = None
         self._send_lock = threading.Lock()
@@ -278,8 +282,11 @@ class TcpClientConnection:
     def status(self) -> str:
         if self.connected:
             state = f"connected to tcp {self.host}:{self.port}"
-        elif self.attempts:
+        elif self.attempts and self.reached:
             state = f"reconnecting ({self.attempts}) to tcp {self.host}:{self.port}"
+        elif self.attempts:
+            reason = f": {self.last_error}" if self.last_error else ""
+            state = f"cannot reach tcp {self.host}:{self.port}{reason} (tried {self.attempts})"
         else:
             state = f"connecting to tcp {self.host}:{self.port}"
         text = f"{state} · sent {self.sent} · dropped {self.dropped}"
@@ -323,7 +330,8 @@ class TcpClientConnection:
         while not self._closing.is_set():
             try:
                 sock = socket.create_connection((self.host, self.port), timeout=CONNECT_TIMEOUT_S)
-            except OSError:
+            except OSError as exc:
+                self.last_error = _reason(exc)
                 self._back_off()
                 continue
             sock.settimeout(POLL_S)
@@ -331,6 +339,8 @@ class TcpClientConnection:
             with self._send_lock:
                 self._sock = sock
                 self.attempts = 0
+                self.reached = True
+                self.last_error = ""
             try:
                 self.bad += read_stream(sock, self.framing, deliver, self._closing)
             finally:
@@ -504,6 +514,15 @@ def read_stream(
                 extra = {"timetag": timetag} if timetag is not None else {}
                 deliver(Message(message.address, tuple(message.params), now, extra))
     return bad
+
+
+def _reason(exc: OSError) -> str:
+    """A short lower-case reason for a failed connect: ``connection refused``, ``timed out``..."""
+    if isinstance(exc, TimeoutError):
+        return "timed out"
+    if isinstance(exc, socket.gaierror):
+        return "unknown host"
+    return (exc.strerror or type(exc).__name__).lower()
 
 
 def keep_alive(sock: socket.socket) -> None:
