@@ -1,8 +1,10 @@
-"""GatesEditor — the project's gates, each with its health (ACTION slot).
+"""GatesEditor — the project's gates above, the Device pane below (ACTION slot; design §10.4).
 
 Everyone who can view sees the gates; editing them needs EDIT (gates are project content, like
-graphs). Clicking a row selects the gate for the Device editor. A gate that does not work shows
-red with the reason, cannot be opened in the Monitor, and puts a red dot on the editor's icon.
+graphs), editing the Device list needs ADMIN. Clicking a row selects the gate, and the Device pane
+below shows it. A gate that does not work shows red with the reason, cannot be opened in the
+Monitor, and puts a red dot on the editor's icon. The divider between the panes moves and never
+collapses; its place is kept while the page is open.
 """
 
 from __future__ import annotations
@@ -22,7 +24,8 @@ from haywire.api.workbench import (
 )
 from nicegui import ui
 
-from haybale_protokol.editor_layout import list_block, scroll_area
+from haybale_protokol.device_pane import DevicePane
+from haybale_protokol.editor_layout import SPLITTER_SEPARATOR, list_block, scroll_area
 from haybale_protokol.gate_form import GateForm
 from haybale_protokol.gate_health import GateHealth
 from haybale_protokol.gates import Gate
@@ -37,6 +40,10 @@ logger = logging.getLogger(__name__)
 _DOT = "display: inline-block; border-radius: 50%; background: currentColor; flex-shrink: 0"
 #: An icon action that cannot be used now (``hui.icon_action``'s disabled rule).
 _DISABLED = "opacity: 0.4; pointer-events: none"
+#: Where the divider starts (percent of the height given to the gates), and how far it moves:
+#: never so far that either pane disappears.
+SPLIT_START = 60.0
+SPLIT_LIMITS = (20, 80)
 
 
 def any_unhealthy(state: ProtokolState) -> bool:
@@ -69,6 +76,9 @@ class GatesEditor(BaseEditor):
         self._rows: ui.column | None = None
         self._dialog_host: ui.element | None = None
         self._dialog: ui.dialog | None = None
+        self._split: float = SPLIT_START
+        """Where the user left the divider, kept across redraws (not across reloads, §10.6.3)."""
+        self._pane = DevicePane(lambda: self._context)
 
     @react_on(ProtokolChanged, ProtokolSelection.gate, ProtokolSelection.line, ProtokolSelection.device)
     def _on_change(self, context: SessionContext, signal: Any) -> None:
@@ -78,6 +88,7 @@ class GatesEditor(BaseEditor):
         """
         self._context = context
         self._draw_rows()
+        self._pane.draw_body()
         self.wrapper.refresh_tab_bar()
 
     def draw_tab(self, context: SessionContext, *, orientation: str) -> None:
@@ -105,15 +116,31 @@ class GatesEditor(BaseEditor):
         container.clear()
         with container:
             with ui.column().classes("w-full h-full gap-0") as root:
-                with hui.slot_header("Gates", icon=hui.icon.network):
-                    if self._can_edit():
-                        hui.icon_action(hui.icon.add, tooltip="Add a gate", on_click=self._open_add).mark(
-                            "gate-add"
-                        )
-                with scroll_area():
-                    self._rows = ui.column().classes("w-full gap-0 p-1")
+                with (
+                    ui.splitter(
+                        horizontal=True, value=self._split, limits=SPLIT_LIMITS, on_change=self._set_split
+                    )
+                    .classes("w-full flex-1 min-h-0")
+                    .props(SPLITTER_SEPARATOR)
+                    .mark("gates-splitter") as splitter
+                ):
+                    with splitter.before:
+                        with ui.column().classes("w-full h-full gap-0"):
+                            with hui.slot_header("Gates", icon=hui.icon.network):
+                                if self._can_edit():
+                                    hui.icon_action(
+                                        hui.icon.add, tooltip="Add a gate", on_click=self._open_add
+                                    ).mark("gate-add")
+                            with scroll_area():
+                                self._rows = ui.column().classes("w-full gap-0 p-1")
+                    with splitter.after:
+                        with ui.column().classes("w-full h-full gap-0") as pane:
+                            self._pane.draw(dialog_host=pane)
             self._dialog_host = root
             self._draw_rows()
+
+    def _set_split(self, event: Any) -> None:
+        self._split = float(event.value)
 
     # -- rows ---------------------------------------------------------------------------
 

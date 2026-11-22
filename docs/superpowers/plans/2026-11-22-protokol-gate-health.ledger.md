@@ -24,3 +24,9 @@ Task 5: complete (tests: 643 passed; ruff, mypy clean)
 Task 6: Ruling: the red dot also shows for a broken Gate file or a malformed gate entry, not only for unhealthy gates — they are gates that do not work too — cost if wrong: none.
 Task 6: Ruling: a disabled Monitor button gets its tooltip ("Cannot monitor: <reason>") on a wrapping span — the design guide's disabled rule sets pointer-events: none, and a tooltip on such a button never shows (Plan 3 deferred #7) — cost if wrong: none.
 Task 6: complete (tests: 648 passed; ruff, mypy clean)
+Task 7: Ruling: the Device pane reads device status from the watch's cached listing (new ProtokolState.device_listing), so a redraw never lists ports; the mapping dialog still lists fresh, as the user is choosing — cost if wrong: status lags a plug by up to one interval (refresh fixes it at once).
+Task 7: Ruling: "not connected" becomes "not plugged in", matching health, and shows in the danger tone — cost if wrong: none.
+Task 7: Ruling: an unbound gate's view offers "Map device…" (ADMIN) itself, the device name filled in; without ADMIN it says mapping needs an admin — cost if wrong: none.
+Task 7: Ruling (fix to task 2): the MIDI listing probes are one rtmidi pair per process, not per driver — per-driver probes exhausted ALSA's client limit in the suite ("Cannot allocate memory") — cost if wrong: none.
+Task 7: not checked here: a saved workspace naming the removed editor — to watch in the live check (the studio restart).
+Task 7: complete (tests: 652 passed x2; ruff, mypy clean)

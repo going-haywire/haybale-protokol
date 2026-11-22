@@ -8,7 +8,7 @@ import re
 import threading
 import time
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -331,6 +331,25 @@ class ProtokolState(AppState):
         """Check which Devices are present now, for every device-using driver (the refresh button)."""
         self._check_devices(only_used=False)
 
+    def device_listing(self, protocol: str) -> tuple[tuple[str, str], ...] | None:
+        """``(os name, description)`` of ``protocol``'s devices at the last check (listed now if none).
+
+        ``None`` when there is no driver for ``protocol``, or it cannot list devices.
+        """
+        driver = self.driver(protocol)
+        if driver is None or not uses_devices(driver):
+            return None
+        with self._lock:
+            seen = self._seen.get(protocol)
+        if seen is None:
+            listed = list_devices(driver)
+            if listed is None:
+                return None
+            seen = tuple(sorted(listed))
+            with self._lock:
+                seen = self._seen.setdefault(protocol, seen)
+        return seen
+
     def present_devices(self, protocol: str) -> frozenset[str] | None:
         """The OS names ``protocol``'s driver listed at its last check, or ``None`` if never checked."""
         with self._lock:
@@ -438,16 +457,9 @@ class ProtokolState(AppState):
 
     def _device_present(self, driver: ProtocolDriver, device: Device) -> bool | None:
         """Whether ``device``'s port is on this machine now; ``None`` when the driver cannot tell."""
-        if not uses_devices(driver):
-            return None
-        with self._lock:
-            seen: Sequence[tuple[str, str]] | None = self._seen.get(driver.protocol)
+        seen = self.device_listing(driver.protocol)
         if seen is None:
-            seen = list_devices(driver)
-            if seen is None:
-                return None
-            with self._lock:
-                self._seen.setdefault(driver.protocol, tuple(seen))
+            return None
         return find_device(driver, device.os_id, seen) is not None
 
     def _check_devices(self, *, only_used: bool) -> bool:

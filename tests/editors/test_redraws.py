@@ -2,7 +2,6 @@
 
 import pytest
 
-from haybale_protokol.editors.device_editor import DeviceEditor
 from haybale_protokol.editors.gates_editor import GatesEditor
 from haybale_protokol.editors.monitor_editor import MonitorEditor
 from haybale_protokol.signals import ProtokolChanged
@@ -16,7 +15,7 @@ def _signals(cls: type, attr: str) -> set[object]:
     return found
 
 
-@pytest.mark.parametrize("cls", [GatesEditor, DeviceEditor, MonitorEditor])
+@pytest.mark.parametrize("cls", [GatesEditor, MonitorEditor])
 def test_protokol_changes_never_redraw_the_whole_editor(cls: type) -> None:
     assert ProtokolChanged not in _signals(cls, handlers._REDRAW_ON_ATTR)
     assert ProtokolChanged in _signals(cls, handlers._REACT_ON_ATTR)

@@ -21,7 +21,7 @@ def test_virtual_port_presence_follows_open_and_delete() -> None:
 
 
 @needs_backend
-def test_listing_reuses_probe_clients(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_listing_reuses_one_probe_pair_per_process(monkeypatch: pytest.MonkeyPatch) -> None:
     import haybale_protokol_midi.driver as driver_module
 
     made: list[str] = []
@@ -36,13 +36,16 @@ def test_listing_reuses_probe_clients(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(driver_module.rtmidi, "MidiIn", counting(real_in, "in"))
     monkeypatch.setattr(driver_module.rtmidi, "MidiOut", counting(real_out, "out"))
-    driver = MidiDriver()
+    MidiDriver().close()  # start without probes
+    made.clear()
+    drivers = [MidiDriver() for _ in range(3)]
     try:
         for _ in range(5):
-            driver.list_devices()
-        assert sorted(made) == ["in", "out"]
+            for driver in drivers:
+                driver.list_devices()
+        assert sorted(made) == ["in", "out"], "one probe pair for the whole process"
     finally:
-        driver.close()
+        drivers[0].close()
 
 
 @needs_backend

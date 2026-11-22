@@ -156,6 +156,7 @@ def test_listing_devices_without_a_midi_backend_is_empty(monkeypatch: pytest.Mon
     def broken() -> None:
         raise SystemError("no MIDI backend")
 
+    MidiDriver().close()  # the listing probes are shared: start as a machine that never had them
     monkeypatch.setattr(driver_module.rtmidi, "MidiIn", broken)
     assert MidiDriver().list_devices() == []
 
