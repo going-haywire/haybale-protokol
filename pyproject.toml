@@ -72,3 +72,8 @@ markers = ["integration: needs the full library system"]
 
 [tool.haywire.marketstall]
 distribute = "pypi"
+
+[tool.haywire.agents]
+# The docs folder whose `serve: developer` pages the Farmhand bridge serves to agent
+# sessions here: core's, through the core clone beside this repository.
+developer-docs = "../haywire-repo/docs"
