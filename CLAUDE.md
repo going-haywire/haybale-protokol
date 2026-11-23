@@ -2,35 +2,19 @@
 
 A haywire project (`haybale-protokol`): one haybale library under `barn/`, released with `haywire share`.
 
+<!-- haywire:org-library:start -->
 ## Working in this repository
 
-This is a going-haywire library and follows core's process: branches and pull requests,
-CI before every merge, a protected `master`, releases through a release pull request. The
-rules are in the org's [CONTRIBUTING.md](https://github.com/going-haywire/.github/blob/main/CONTRIBUTING.md)
-and core's [CONTRIBUTING.md](https://github.com/going-haywire/haywire/blob/master/CONTRIBUTING.md);
-the step-by-step is the `haywire-workflow` skill, which comes with its hooks in the
-`haywire-dev` plugin. `.claude/settings.json` enables it; install it once per clone, or
-this session runs without the skill and without the hooks that guard git and merges:
-
-```sh
-claude plugin marketplace add going-haywire/.github   # once per machine
-claude plugin install haywire-dev@going-haywire --scope project
-```
-
-Load the skill (`haywire-dev:haywire-workflow`) before the first branch, commit, push or
-`gh pr` command of any task.
-
-- **Layout.** This is a development project: `[tool.uv.sources]` reaches core at
-  `../haywire-repo`, so this repository is cloned beside core. Its own environment runs its
-  tests; the full studio with every library runs from the umbrella environment
-  ([ADR 0081](https://github.com/going-haywire/haywire/blob/master/docs/adr/0081-libraries-from-other-repositories-run-from-an-umbrella-environment.md)).
-  A worktree goes beside the repositories (`git worktree add ../haybale-protokol-<name>`),
-  never elsewhere, or the relative paths break.
-- **Checks** before each commit: `uv run --frozen ruff check .`, `uv run --frozen ruff
-  format --check .`, `uv run --frozen pytest`. CI runs them against core's `master` on every
-  pull request and every night.
-- **Releases** go through a release pull request: `share --bump patch --pr` (the `READY`
-  row below). Merging it is the owner's word, and the merge run tags and publishes.
+This is a going-haywire library: it follows core's workflow, and its own rules are
+*In a library* on core's contributing page
+([docs/collaboration/contributing.md](https://github.com/going-haywire/haywire/blob/master/docs/collaboration/contributing.md#in-a-library)).
+Read the workflow before the first branch, commit, push or `gh pr` command of any task: the
+Farmhand bridge serves it as `farmhand://dev/collaboration/workflow.md`
+(the file: `../haywire-repo/docs/collaboration/workflow.md`), and the hooks refuse a commit until
+this session has. This repository's committed files (`.mcp.json`, `.claude/settings.json`,
+`t3.json`) bring the workflow, its hooks and the bridge from core beside it, with nothing to
+install; `uv run haywire init --org-files` refreshes them.
+<!-- haywire:org-library:end -->
 
 ## Releases
 
