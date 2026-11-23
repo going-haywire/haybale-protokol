@@ -121,7 +121,7 @@ def test_bad_frame_reconnects() -> None:
     server = TestPeer("1.0")
     client, received = _client(server.port, "1.0")
     try:
-        assert _wait(lambda: client.connected)
+        assert _wait(lambda: server.accepts == 1 and client.connected)
         server.send_raw(b"\xff\xff\xff\xff")
         assert _wait(lambda: server.accepts == 2, timeout=3.0), "client should drop and reconnect"
         assert "1 bad" in client.status
@@ -136,7 +136,7 @@ def test_invalid_slip_escape_reconnects() -> None:
     server = TestPeer("1.1")
     client, received = _client(server.port, "1.1")
     try:
-        assert _wait(lambda: client.connected)
+        assert _wait(lambda: server.accepts == 1 and client.connected)
         server.send_raw(b"\xc0\xdb\x00\xc0")
         assert _wait(lambda: server.accepts == 2, timeout=3.0), "client should drop and reconnect"
         assert "1 bad" in client.status
