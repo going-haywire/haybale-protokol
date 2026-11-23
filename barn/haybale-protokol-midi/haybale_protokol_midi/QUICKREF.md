@@ -1,4 +1,4 @@
-# haybale-protokol-midi — component index (v0.0.7)
+# haybale-protokol-midi — component index (v0.0.8)
 
 ## node
 - `haybale-protokol-midi:node:MidiEventNode` — MIDI Event — Triggered for each MIDI message on its gates that passes its kind, channel and number  _tags: midi, receive, note, cc, controller, protokol_

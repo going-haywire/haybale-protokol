@@ -62,7 +62,7 @@ https://github.com/going-haywire/haybale-protokol/blob/master/marketstall.toml
 Frozen to this version:
 
 ```sh
-https://github.com/going-haywire/haybale-protokol/blob/v0.0.7/marketstall.toml
+https://github.com/going-haywire/haybale-protokol/blob/v0.0.8/marketstall.toml
 ```
 <!-- marketstall:share-url:end -->
 
