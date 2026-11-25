@@ -1,21 +1,19 @@
-"""Gamepad Event — runs its flow for each gamepad control change on its gates that passes its filter."""
+"""Gamepad Event — runs its flow when one of its outputs changes on its gates; one outlet per output."""
 
 from __future__ import annotations
 
 import logging
+import threading
 from functools import partial
 from typing import Any
 
 from haywire.api import (
     EXEC,
-    INT,
     STRING,
     BaseNode,
     ExecutionContext,
-    MenuWidget,
     NodeType,
-    NumberWidget,
-    StoreStrategy,
+    NodeWarning,
     bag,
     node,
 )
@@ -26,21 +24,26 @@ from haybale_protokol.gate_names import gate_names, named_status
 from haybale_protokol.gate_warning import GateBadge
 from haybale_protokol.receive import ReceiveBinding, get_protokol_state
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
-from haybale_protokol_gamepad.gamepad_messages import KINDS, STREAM_KINDS
-from haybale_protokol_gamepad.gamepad_pins import (
-    INDEX_HELP,
-    INDEX_RANGE,
-    KIND_PINS,
-    filter_problem,
-    index_filter,
-    show_filter_problem,
+from haybale_protokol_gamepad.gamepad_outputs import (
+    BY_NAME,
+    DEFAULT,
+    Output,
+    Shaping,
+    changes,
+    is_event,
+    selected,
+    unknown,
+    value,
 )
+from haybale_protokol_gamepad.gamepad_settings import NodeReport, StickShaping, show_status
+from haybale_protokol_gamepad.widgets.outputs_menu_widget import OutputsMenuWidget
 
 logger = logging.getLogger(__name__)
 
-#: Display order of every outlet the filter can bring.
-_OUTLET_ORDER = ("control", "index", "value", "pressed", "hat", "status")
-_REBUILT = r"^(control|index|value|pressed|hat|status)$"
+#: Every port id an output can bring, for ``rejig``.
+_REBUILT = "^(" + "|".join(BY_NAME) + ")$"
+#: The ``NodeWarning.kind`` of output names the node does not know.
+OUTPUTS_WARNING = "protokol-gamepad-outputs"
 
 GATE_HELP = (
     "One or more gamepad gates from the project's Gate file; pick them from the list or type a "
@@ -48,39 +51,41 @@ GATE_HELP = (
     "this machine. Changes from every gate run the same flow; From gate says which one. A gate "
     "whose pad is unplugged waits for it and listens again when it is back. Applies on the next start."
 )
-KIND_HELP = (
-    "What to listen for. axis: a stick (−1…1, left and up negative) or a trigger (0…1); button: "
-    "pressed or released; hat: the d-pad as one vector (x −1 left … 1 right, y −1 up … 1 down); "
-    "all: every control, with a control outlet saying which kind. The outlets change with the kind."
+OUTPUTS_HELP = (
+    "What to read from the pad: each chosen output becomes an outlet, in the order chosen, and the "
+    "flow runs when any of them changes. Sticks as a vector (left_stick_vec, VEC2F) or one axis "
+    "(left_stick_x, FLOAT), triggers 0…1, the d-pad as a vector (dpad_vec, VEC2I), and each button "
+    "(BOOL). Face buttons go by position on every brand: a is the bottom one. All outlets are read "
+    "from the same moment, so a stick's x and y always belong together."
 )
 
 
 @node(
     label="Gamepad Event",
-    description="Triggered for each change of a gamepad axis, button or d-pad that passes its filter",
+    description="Triggered when one of its chosen sticks, triggers, d-pad or buttons changes",
     menu="protokol/gamepad",
-    search_tags=["gamepad", "game controller", "joystick", "receive", "axis", "button", "protokol"],
+    search_tags=["gamepad", "game controller", "joystick", "receive", "stick", "button", "protokol"],
     node_type=NodeType.EVENT,
 )
 class GamepadEventNode(BaseNode):
-    """Runs its flow for each change of a gamepad control of its kind (and index) on its gates.
+    """Runs its flow when one of its chosen outputs changes on its gates.
 
-    Kind and Index are the node's filter, and its outlets follow it. Axes and the d-pad fire their
-    last value when the graph starts and keep only the newest change when the flow runs behind;
-    buttons queue every press and release.
+    Outputs is the node's filter: each output chosen is one outlet, and the flow runs when any of
+    them changes, with every outlet read from the pad's state at that moment. Sticks, triggers and
+    the d-pad fire their value when the graph starts, and keep only the newest change when the flow
+    runs behind; with a button among the outputs, every press and release is kept.
 
     Outputs:
-        received: Control flow for each change that passes the filter
+        received: Control flow for each change of a chosen output
         from_gate: The gate the change came in on
-        control: For all, which kind of control changed (axis, button or hat)
-        index: The control's index, when the filter leaves it open
-        value: An axis (−1…1, a trigger 0…1); for all, a button as 0 or 1
-        pressed: Whether a button is down
-        hat: The d-pad as (x, y)
-        status: Each gate's state
+        changed: Which chosen output changed
+        (one outlet per chosen output): sticks VEC2F or FLOAT, triggers FLOAT 0…1, the d-pad VEC2I,
+            buttons BOOL
     """
 
+    shaping = bag(StickShaping)
     dispatch = bag(ReceiveDispatchSettings)
+    report = bag(NodeReport)
 
     def init(self) -> None:
         self.add(
@@ -95,21 +100,11 @@ class GamepadEventNode(BaseNode):
         )
         self.add(
             STRING.as_config(
-                "kind",
-                default="axis",
-                label="Kind",
-                description=KIND_HELP,
-                widget=MenuWidget.config(properties={"options": list(KINDS)}),
-                on_change="hb_rebuild",
-            )
-        )
-        self.add(
-            INT.as_config(
-                "filter_index",
-                default=0,
-                label="Index",
-                description=INDEX_HELP,
-                widget=NumberWidget.config(properties=INDEX_RANGE),
+                "outputs",
+                default=DEFAULT,
+                label="Outputs",
+                description=OUTPUTS_HELP,
+                widget=OutputsMenuWidget.config(),
                 on_change="hb_rebuild",
             )
         )
@@ -117,52 +112,59 @@ class GamepadEventNode(BaseNode):
         self.add(
             STRING.as_outlet("from_gate", label="From gate", description="The gate the change came in on")
         )
-        self._add_filter_outlets("axis", 0)
+        self.add(STRING.as_outlet("changed", label="Changed", description="Which chosen output changed"))
+        self._add_outputs(selected(DEFAULT))
 
     def post_init(self) -> None:
         self._gate_badge = GateBadge(self)
         self._gate_badge.start()
         self._bindings: list[ReceiveBinding] = []
+        self._lock = threading.Lock()
+        self._outputs: tuple[Output, ...] = tuple(self._chosen())
+        """The chosen outputs, read by the Line's thread; replaced whole under ``_lock``."""
         self._start_value = False
         self._subscribe()
-        show_filter_problem(self, self._filter_problem())
+        self._show_unknown()
 
     def on_assembly(self) -> tuple[bool, str | None]:
         self._gate_badge.refresh()
         self._subscribe()
-        show_filter_problem(self, self._filter_problem())
+        self._show_unknown()
         return True, None
 
     # -- ports -------------------------------------------------------------------
 
     def hb_rebuild(self, *_args: Any) -> None:
-        """Rebuild the outlets after the kind or index changed."""
-        kind, index = self._filter()
+        """Rebuild the outlets after the outputs changed."""
+        outputs = self._chosen()
         with self.rejig(include=_REBUILT):
-            self._add_filter_outlets(kind, index)
+            self._add_outputs(outputs)
+        with self._lock:
+            self._outputs = tuple(outputs)
         self._subscribe()
-        show_filter_problem(self, self._filter_problem())
+        self._show_unknown()
 
-    def _add_filter_outlets(self, kind: str, index: int) -> None:
+    def _add_outputs(self, outputs: list[Output]) -> None:
         import haywire.api as builtin
 
-        if kind == "all" or index < 0:
-            self.add(builtin.INT.as_outlet("index", label="Index"))
-        for port_id, type_name in KIND_PINS.get(kind, ()):
-            self.add(getattr(builtin, type_name).as_outlet(port_id, label=port_id.capitalize()))
-        self.add(STRING.as_outlet("status", label="Status", default="", store_strategy=StoreStrategy.NEVER))
-        self._order_rebuilt()
-
-    def _order_rebuilt(self) -> None:
-        """Order the rebuilt outlets after the fixed ones: a re-added port keeps its old place."""
-        rebuilt = [port_id for port_id in _OUTLET_ORDER if port_id in self.ports]
-        fixed = [port.order for port_id, port in self.ports.items() if port_id not in rebuilt]
+        for output in outputs:
+            self.add(getattr(builtin, output.type_name).as_outlet(output.name, label=output.name))
+        fixed = [port.order for port_id, port in self.ports.items() if port_id not in BY_NAME]
         base = max(fixed, default=0) + 1
-        for offset, port_id in enumerate(rebuilt):
-            self.ports[port_id].order = base + offset
+        for offset, output in enumerate(outputs):
+            self.ports[output.name].order = base + offset  # in the order chosen
         wrapper = getattr(self, "wrapper", None)
         if wrapper is not None:
             wrapper.mark_layout_changed()
+
+    def _show_unknown(self) -> None:
+        """Badge output names the node does not know (a hand-edited graph, an agent's typo)."""
+        wrapper = getattr(self, "wrapper", None)
+        if wrapper is None:
+            return
+        names = unknown(str(self.value("outputs") or ""))
+        warnings = [NodeWarning(f"Unknown outputs: {', '.join(names)}", None, kind=OUTPUTS_WARNING)]
+        wrapper.replace_warnings(OUTPUTS_WARNING, warnings if names else [])
 
     # -- running -----------------------------------------------------------------
 
@@ -185,11 +187,11 @@ class GamepadEventNode(BaseNode):
                 fire,
                 start_value=start_value,
                 block=queue_mode.name == "BLOCK",
-                on_status=lambda: self.post_value("status", self._status()),
+                on_status=lambda: show_status(self, self._status()),
             )
             for name in gate_names(str(self.value("gate") or ""))
         ]
-        self.post_value("status", self._status())
+        show_status(self, self._status())
         self._gate_badge.refresh()
 
     def on_shutdown(self, context: ExecutionContext) -> None:
@@ -211,57 +213,45 @@ class GamepadEventNode(BaseNode):
         if not isinstance(payload, dict):
             return None
         self.out("from_gate", payload["gate"])
-        for port_id, value in payload["values"].items():
-            if port_id in self.ports:
-                self.out(port_id, value)
-        self.out("status", self._status())
+        self.out("changed", payload["changed"])
+        shaping = Shaping(float(self.shaping.dead_zone or 0.0), bool(self.shaping.y_up))
+        axes, buttons = payload["state"]
+        for output in self._outputs:
+            if output.name in self.ports:
+                self.out(output.name, value(output, axes, buttons, shaping))
+        self.report.status = self._status()
         return "received"
 
     def _accept(self, message: Message, gate: str) -> dict[str, Any] | None:
+        """On the Line's thread: a payload when ``message`` changed a chosen output."""
+        state = message.extra.get("state")
+        if state is None:
+            return None
         if message.extra.get("initial") and not self._start_value:
             return None  # the pad's state when its Line opened: a start value
-        kind, index = self._filter()
-        got = message.extra.get("kind")
-        if got not in ("axis", "button", "hat"):
+        with self._lock:
+            outputs = self._outputs
+        hit = next((output for output in outputs if changes(output, message)), None)
+        if hit is None:
             return None
-        if kind != "all" and (got != kind or (index >= 0 and message.extra.get("index") != index)):
-            return None
-        value = message.args[0]
-        values: dict[str, Any] = {"control": got, "index": message.extra.get("index")}
-        if got == "axis":
-            values["value"] = value
-        elif got == "button":
-            values["pressed"] = value
-            if kind == "all":
-                values["value"] = 1.0 if value else 0.0
-        else:
-            values["hat"] = value
-        return {"gate": gate, "values": values}
+        return {"gate": gate, "changed": hit.name, "state": state}
 
     def _status(self) -> str:
         parts = [named_status(binding.gate_name, binding.status) for binding in self._bindings]
-        problem = self._filter_problem()
-        return " · ".join([problem, *parts] if problem else parts) or "no gate set"
-
-    def _filter_problem(self) -> str | None:
-        """Why no control can pass the filter, or ``None``: such a node would never fire."""
-        return filter_problem(*self._filter())
+        return " · ".join(parts) or "no gate set"
 
     # -- helpers -----------------------------------------------------------------
 
-    def _filter(self) -> tuple[str, int]:
-        kind = str(self.value("kind") or "axis")
-        return kind if kind in KINDS else "axis", index_filter(self.value("filter_index"))
+    def _chosen(self) -> list[Output]:
+        return selected(str(self.value("outputs") or ""))
 
     def _single_source(self) -> bool:
-        """One control (the d-pad is one) and one gate."""
-        kind, index = self._filter()
-        if kind == "all" or (kind != "hat" and index < 0):
-            return False
+        """One gate: every message carries the whole pad, so the newest says everything."""
         return len(gate_names(str(self.value("gate") or ""))) <= 1
 
     def _is_stream(self) -> bool:
-        return self._filter()[0] in STREAM_KINDS
+        """No button chosen: only values (sticks, triggers, d-pad), whose newest state is enough."""
+        return not any(is_event(output) for output in self._chosen())
 
     def _subscribe(self) -> None:
         queue_mode, size, _start = resolve_dispatch(

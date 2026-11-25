@@ -14,13 +14,13 @@ Rumbles the gamepads of its gates each time it runs
 | `duration` | inlet | `haywire-core:type:INT` | How long the rumble lasts, 0…60000 ms |
 | `gate` | config | `haywire-core:type:STRING` | One or more two-way gamepad gates from the project's Gate file; pick them from the list or type a name. Each rumble goes to every listed gate; a gate whose pad is unplugged, unknown or cannot rumble is reported in status and the others still get it. A rumble no gate could take counts as dropped, never queued. Applies on the next start. |
 | `next` | outlet | `haywire-core:type:EXEC` | Signal for controlling execution flow between nodes |
-| `status` | outlet | `haywire-core:type:STRING` | Text data |
 
 ## Settings
 
 | name | bag | default | description |
 |---|---|---|---|
 | `only_changes` | sending | `False` | Off: every control tick sends the message. On: a tick sends to a gate only when the message differs from the last one that gate took; the first tick of a run always sends, and a gate that missed a message gets it on the next tick. Skipped ticks are counted as 'unchanged' in status. |
+| `status` | report | `''` | Each gate's state, and what was sent or dropped. Never saved. |
 
 ## Notes
 
@@ -33,4 +33,6 @@ rumbles a gate only when the rumble differs from the last one that gate took.
 
 Outputs:
     next: Control flow after sending
-    status: What was sent, skipped and dropped, and which gates cannot be used
+
+Status (a setting, off the card until promoted to a row or an outlet) says what was sent,
+skipped and dropped, and which gates cannot be used.

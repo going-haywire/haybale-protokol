@@ -122,6 +122,9 @@ class SdlBackend:
         # Pads keep reporting while no window of this process has focus (there is none).
         sdl2.SDL_SetHint(sdl2.SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, b"1")
         sdl2.SDL_SetHint(sdl2.SDL_HINT_JOYSTICK_THREAD, b"1")
+        # Face buttons by position on every brand: A is the bottom one, also on Nintendo pads,
+        # whose labels are swapped (SDL2 reports those by label unless told otherwise).
+        sdl2.SDL_SetHint(sdl2.SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, b"0")
         if sdl2.SDL_Init(sdl2.SDL_INIT_GAMECONTROLLER | sdl2.SDL_INIT_EVENTS) != 0:
             raise OSError(f"SDL cannot start game controllers: {_error(sdl2)}")
         self._sdl = sdl2
@@ -449,8 +452,9 @@ class GamepadConnection:
         self._handle: Any = None
         self._instance = -1
         self._deliver: Callable[[Message], None] | None = None
-        self._held: set[int] = set()
-        """The d-pad buttons held now, for the hat."""
+        self._axes = [0.0] * len(gamepad_messages.AXES)
+        self._buttons = [False] * len(gamepad_messages.BUTTONS)
+        """The pad's state now, which every message carries."""
 
     @property
     def status(self) -> str:
@@ -504,24 +508,35 @@ class GamepadConnection:
         if deliver is None:
             return
         now = time.time()
-        self._held = {index for index in gamepad_messages.DPAD if index < len(buttons) and buttons[index]}
-        for index, raw in enumerate(axes):
-            deliver(gamepad_messages.axis(index, raw, now, initial=True))
-        deliver(gamepad_messages.hat(*gamepad_messages.dpad_hat(self._held), now, initial=True))
+        for index, raw in enumerate(axes[: len(self._axes)]):
+            self._axes[index] = gamepad_messages.axis_value(index, raw)
+        for index, pressed in enumerate(buttons[: len(self._buttons)]):
+            self._buttons[index] = bool(pressed)
+        state = self._state()
+        for index, raw in enumerate(axes[: len(self._axes)]):
+            deliver(gamepad_messages.axis(index, raw, now, initial=True, state=state))
+        deliver(gamepad_messages.hat(*self._hat(), now, initial=True, state=state))
 
     def feed(self, event: PadEvent) -> None:
         deliver = self._deliver
         if deliver is None:
             return
         now = time.time()
-        if event.kind == "axis":
-            deliver(gamepad_messages.axis(event.control, event.value, now))
-        elif event.kind == "button":
+        index = event.control
+        if event.kind == "axis" and 0 <= index < len(self._axes):
+            self._axes[index] = gamepad_messages.axis_value(index, event.value)
+            deliver(gamepad_messages.axis(index, event.value, now, state=self._state()))
+        elif event.kind == "button" and 0 <= index < len(self._buttons):
             pressed = bool(event.value)
-            deliver(gamepad_messages.button(event.control, pressed, now))
-            if event.control in gamepad_messages.DPAD:
-                if pressed:
-                    self._held.add(event.control)
-                else:
-                    self._held.discard(event.control)
-                deliver(gamepad_messages.hat(*gamepad_messages.dpad_hat(self._held), now))
+            self._buttons[index] = pressed
+            state = self._state()
+            deliver(gamepad_messages.button(index, pressed, now, state=state))
+            if index in gamepad_messages.DPAD:
+                deliver(gamepad_messages.hat(*self._hat(), now, state=state))
+
+    def _state(self) -> gamepad_messages.PadState:
+        return tuple(self._axes), tuple(self._buttons)
+
+    def _hat(self) -> tuple[int, int]:
+        held = {i for i in gamepad_messages.DPAD if self._buttons[i]}
+        return gamepad_messages.dpad_hat(held)

@@ -191,3 +191,24 @@ def test_close_stops_sdl(sdl: FakeBackend) -> None:
     driver.close()  # safe twice
     driver.list_devices()
     assert sdl.started == 2, "the next listing starts it again"
+
+
+def test_every_message_carries_the_whole_pad(sdl: FakeBackend) -> None:
+    pad = FakePad()
+    pad.buttons[2] = True  # x held at open
+    sdl.plug(pad)
+    connection, got = _open(GamepadDriver(), XBOX)
+    assert wait_until(lambda: len(got) == 7)
+    axes, buttons = got[0].extra["state"]
+    assert (buttons[0], buttons[2]) == (False, True)
+    got.clear()
+    sdl.move(pad, 0, 32767)
+    sdl.move(pad, 1, -32768)
+    sdl.press(pad, 0)
+    assert wait_until(lambda: len(got) == 3)
+    axes, buttons = got[1].extra["state"]
+    assert (axes[0], axes[1]) == (1.0, -1.0), "y's message knows x"
+    assert not buttons[0], "not yet pressed then"
+    axes, buttons = got[2].extra["state"]
+    assert (buttons[0], buttons[2]) == (True, True)
+    connection.close()

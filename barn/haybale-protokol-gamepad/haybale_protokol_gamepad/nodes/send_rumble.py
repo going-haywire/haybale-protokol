@@ -11,7 +11,6 @@ from haywire.api import (
     ExecutionContext,
     NodeType,
     NumberWidget,
-    StoreStrategy,
     bag,
     node,
 )
@@ -23,6 +22,7 @@ from haybale_protokol.receive import get_protokol_state
 from haybale_protokol.sending import SendSettings
 from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
 from haybale_protokol_gamepad.gamepad_messages import RUMBLE_MAX_MS, rumble
+from haybale_protokol_gamepad.gamepad_settings import NodeReport, show_status
 
 GATE_HELP = (
     "One or more two-way gamepad gates from the project's Gate file; pick them from the list or "
@@ -51,10 +51,13 @@ class SendRumbleNode(BaseNode):
 
     Outputs:
         next: Control flow after sending
-        status: What was sent, skipped and dropped, and which gates cannot be used
+
+    Status (a setting, off the card until promoted to a row or an outlet) says what was sent,
+    skipped and dropped, and which gates cannot be used.
     """
 
     sending = bag(SendSettings)
+    report = bag(NodeReport)
 
     def init(self) -> None:
         self.add(
@@ -96,7 +99,6 @@ class SendRumbleNode(BaseNode):
             )
         )
         self.add(EXEC.as_outlet("next", label="Next"))
-        self.add(STRING.as_outlet("status", label="Status", default="", store_strategy=StoreStrategy.NEVER))
 
     def post_init(self) -> None:
         self._gate_badge = GateBadge(self)
@@ -109,7 +111,7 @@ class SendRumbleNode(BaseNode):
 
     def on_startup(self, context: ExecutionContext) -> None:
         self._sender.open(get_protokol_state(), gate_names(str(self.value("gate") or "")))
-        self.post_value("status", self._sender.status())
+        show_status(self, self._sender.status())
         self._gate_badge.refresh()
 
     def on_shutdown(self, context: ExecutionContext) -> None:
@@ -127,7 +129,7 @@ class SendRumbleNode(BaseNode):
     def worker(self, context: ExecutionContext) -> str | None:
         if self._sender.active:
             self._send()
-        self.out("status", self._sender.status())
+        self.report.status = self._sender.status()
         return "next"
 
     def _send(self) -> None:

@@ -2,42 +2,42 @@
 
 `haybale-protokol-gamepad:node:GamepadEventNode` · kind: node
 
-Triggered for each change of a gamepad axis, button or d-pad that passes its filter
+Triggered when one of its chosen sticks, triggers, d-pad or buttons changes
 
 ## Ports
 
 | id | direction | type | description |
 |---|---|---|---|
 | `gate` | config | `haywire-core:type:STRING` | One or more gamepad gates from the project's Gate file; pick them from the list or type a name. A gamepad gate names a Device, which the Gates editor's Device pane maps to a pad on this machine. Changes from every gate run the same flow; From gate says which one. A gate whose pad is unplugged waits for it and listens again when it is back. Applies on the next start. |
-| `kind` | config | `haywire-core:type:STRING` | What to listen for. axis: a stick (−1…1, left and up negative) or a trigger (0…1); button: pressed or released; hat: the d-pad as one vector (x −1 left … 1 right, y −1 up … 1 down); all: every control, with a control outlet saying which kind. The outlets change with the kind. |
-| `filter_index` | config | `haywire-core:type:INT` | Which control, by SDL's GameController layout, or −1 for any (an index outlet then says which). Axes: 0 leftx, 1 lefty, 2 rightx, 3 righty, 4 lefttrigger, 5 righttrigger. Buttons: 0 a, 1 b, 2 x, 3 y, 4 back, 5 guide, 6 start, 7 leftstick, 8 rightstick, 9 leftshoulder, 10 rightshoulder, 11 dpup, 12 dpdown, 13 dpleft, 14 dpright, 15 misc1, 16 paddle1, 17 paddle2, 18 paddle3, 19 paddle4, 20 touchpad. Hat: 0, the d-pad. Not used by all, which passes every control. |
+| `outputs` | config | `haywire-core:type:STRING` | What to read from the pad: each chosen output becomes an outlet, in the order chosen, and the flow runs when any of them changes. Sticks as a vector (left_stick_vec, VEC2F) or one axis (left_stick_x, FLOAT), triggers 0…1, the d-pad as a vector (dpad_vec, VEC2I), and each button (BOOL). Face buttons go by position on every brand: a is the bottom one. All outlets are read from the same moment, so a stick's x and y always belong together. |
 | `received` | outlet | `haywire-core:type:EXEC` | Signal for controlling execution flow between nodes |
 | `from_gate` | outlet | `haywire-core:type:STRING` | The gate the change came in on |
-| `value` | outlet | `haywire-core:type:FLOAT` | Decimal number |
-| `status` | outlet | `haywire-core:type:STRING` | Text data |
+| `changed` | outlet | `haywire-core:type:STRING` | Which chosen output changed |
+| `left_stick_vec` | outlet | `haywire-core:type:VEC2F` | 2D float vector |
 
 ## Settings
 
 | name | bag | default | description |
 |---|---|---|---|
+| `dead_zone` | shaping | `0.2` | How far a stick must move from its centre before it counts, 0…0.9. Inside, it reads 0; outside, it is rescaled to still reach 1. Pads rest a little off centre (often 0.05–0.2). Applies to x and y together, so diagonals stay true; 0 gives the raw value. |
+| `y_up` | shaping | `True` | On: pushing a stick or the d-pad up gives a positive y, as in maths and most 3D. Off: down is positive, as SDL and screen coordinates count (y grows downward). |
 | `queue_mode` | dispatch | `'Auto (by message kind)'` | Block runs the flow for every message; a slow flow then falls behind, never the Line. Drop keeps only the newest message. Auto uses Drop for values from one source (one fader, axis or exact OSC address on one gate) and Block for everything else. |
 | `max_queue_size` | dispatch | `100` | How many messages Block holds while the flow runs behind. Drop always holds one. |
 | `start_value` | dispatch | `'Auto (by message kind)'` | Fire once with the last message the Line saw when the graph starts. Auto: on for values, off for events. |
+| `status` | report | `''` | Each gate's state, and what was sent or dropped. Never saved. |
 
 ## Notes
 
-Runs its flow for each change of a gamepad control of its kind (and index) on its gates.
+Runs its flow when one of its chosen outputs changes on its gates.
 
-Kind and Index are the node's filter, and its outlets follow it. Axes and the d-pad fire their
-last value when the graph starts and keep only the newest change when the flow runs behind;
-buttons queue every press and release.
+Outputs is the node's filter: each output chosen is one outlet, and the flow runs when any of
+them changes, with every outlet read from the pad's state at that moment. Sticks, triggers and
+the d-pad fire their value when the graph starts, and keep only the newest change when the flow
+runs behind; with a button among the outputs, every press and release is kept.
 
 Outputs:
-    received: Control flow for each change that passes the filter
+    received: Control flow for each change of a chosen output
     from_gate: The gate the change came in on
-    control: For all, which kind of control changed (axis, button or hat)
-    index: The control's index, when the filter leaves it open
-    value: An axis (−1…1, a trigger 0…1); for all, a button as 0 or 1
-    pressed: Whether a button is down
-    hat: The d-pad as (x, y)
-    status: Each gate's state
+    changed: Which chosen output changed
+    (one outlet per chosen output): sticks VEC2F or FLOAT, triggers FLOAT 0…1, the d-pad VEC2I,
+        buttons BOOL

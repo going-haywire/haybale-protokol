@@ -3,7 +3,9 @@
 SDL's GameController API gives every supported pad one layout, so an index means the same
 control on hundreds of pads. The ``address`` names what a filter matches and what the Line
 cache keeps the last of: ``axis <i>``, ``button <i>``, ``hat 0`` and, outbound, ``rumble``.
-``extra`` holds ``kind`` and ``index``, and ``initial`` on the state a pad reports when its
+``extra`` holds ``kind``, ``index`` and, from a pad, ``state``: the pad's whole state just after
+this change (``PadState``), so a Receive node reads every output it shows from one message.
+``initial`` marks the state a pad reports when its
 Line opens (where its sticks, triggers and d-pad are): the Line cache's start values, which a
 Receive node takes only when its Start value is on.
 
@@ -21,13 +23,13 @@ from __future__ import annotations
 import time as _time
 from typing import Any
 
+
 from haywire.api import Vec2i
 
 from haybale_protokol.drivers import Message
 
-KINDS = ("axis", "button", "hat", "all")
-#: Kinds whose value is a state (a stick, a trigger, the d-pad): Start value on, Drop with a queue of one.
-STREAM_KINDS = ("axis", "hat")
+PadState = tuple[tuple[float, ...], tuple[bool, ...]]
+"""A pad's axes (scaled as ``axis_value`` does) and buttons, by index."""
 
 #: SDL_GameControllerAxis, by index.
 AXES = ("leftx", "lefty", "rightx", "righty", "lefttrigger", "righttrigger")
@@ -62,14 +64,6 @@ DPAD = (11, 12, 13, 14)
 #: Pads have one hat, the d-pad.
 HATS = ("dpad",)
 
-#: The highest index of each kind (``all`` covers the buttons, the most).
-MAX_INDEX = {
-    "axis": len(AXES) - 1,
-    "button": len(BUTTONS) - 1,
-    "hat": len(HATS) - 1,
-    "all": len(BUTTONS) - 1,
-}
-
 #: SDL's axis range.
 AXIS_MAX = 32767
 #: The longest rumble, in milliseconds: a minute (SDL would take more; a control message should not).
@@ -82,20 +76,27 @@ def index_name(kind: str, index: int) -> str:
     return names[index] if 0 <= index < len(names) else str(index)
 
 
-def axis(index: int, raw: int, time: float, *, initial: bool = False) -> Message:
-    """An axis motion with SDL's ``raw`` value (−32768…32767), scaled to −1…1 (a trigger 0…1)."""
+def axis_value(index: int, raw: int) -> float:
+    """SDL's ``raw`` axis value (−32768…32767), scaled to −1…1 (a trigger 0…1)."""
     value = max(-1.0, min(1.0, raw / AXIS_MAX))
-    if index in TRIGGERS:
-        value = max(0.0, value)
-    return Message(f"axis {index}", (value,), time, _extra("axis", index, initial))
+    return max(0.0, value) if index in TRIGGERS else value
 
 
-def button(index: int, pressed: bool, time: float) -> Message:
-    return Message(f"button {index}", (bool(pressed),), time, {"kind": "button", "index": index})
+def axis(
+    index: int, raw: int, time: float, *, initial: bool = False, state: PadState | None = None
+) -> Message:
+    """An axis motion with SDL's ``raw`` value (−32768…32767), scaled by ``axis_value``."""
+    extra = _extra("axis", index, initial, state)
+    return Message(f"axis {index}", (axis_value(index, raw),), time, extra)
 
 
-def hat(x: int, y: int, time: float, *, initial: bool = False) -> Message:
-    return Message("hat 0", (Vec2i([int(x), int(y)]),), time, _extra("hat", 0, initial))
+def button(index: int, pressed: bool, time: float, *, state: PadState | None = None) -> Message:
+    extra = _extra("button", index, False, state)
+    return Message(f"button {index}", (bool(pressed),), time, extra)
+
+
+def hat(x: int, y: int, time: float, *, initial: bool = False, state: PadState | None = None) -> Message:
+    return Message("hat 0", (Vec2i([int(x), int(y)]),), time, _extra("hat", 0, initial, state))
 
 
 def dpad_hat(held: set[int]) -> tuple[int, int]:
@@ -161,10 +162,12 @@ def _describe(message: Message) -> str:
     return f"{message.address} {args}"
 
 
-def _extra(kind: str, index: int, initial: bool) -> dict[str, Any]:
+def _extra(kind: str, index: int, initial: bool, state: PadState | None = None) -> dict[str, Any]:
     extra: dict[str, Any] = {"kind": kind, "index": index}
     if initial:
         extra["initial"] = True
+    if state is not None:
+        extra["state"] = state
     return extra
 
 
