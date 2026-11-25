@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from haywire.api import BaseWidget, PrimitiveUnwrappingConverter, widget
 from haywire.api.workbench import LevelMode, stamp_requires
 from nicegui import ui
 
-from haybale_protokol_gamepad.gamepad_outputs import CHOICES, names, join_names
+from haybale_protokol_gamepad.gamepad_outputs import CHOICES, OUTPUTS, join_names, names
 
 #: A quiet chip, like the gate chips (design guide §1.3).
 _CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
@@ -26,11 +27,22 @@ class OutputListConverter(PrimitiveUnwrappingConverter):
 
 
 def chip_template() -> str:
-    """The select's ``selected-item`` slot: each output as a removable chip, by its outlet name."""
-    name = "(props.opt.value ?? props.opt)"
+    """The select's ``selected-item`` slot: each output as a removable chip.
+
+    The chip shows the outlet name (``left_stick_vec``), as on the node; hovering it shows the
+    output's label and outlet type (``Left stick (x, y) · VEC2F``). NiceGUI hands the browser
+    each option as ``{value: <its index>, label}``, so both are looked up by that index, in
+    ``OUTPUTS`` order (the order of ``CHOICES``).
+    """
+    names = json.dumps([output.name for output in OUTPUTS])
+    tips = json.dumps([f"{output.label} · {output.type_name}" for output in OUTPUTS])
+    index = "props.opt.value"
     return (
         f'<q-chip dense square removable :tabindex="props.tabindex" style="{_CHIP_STYLE}" '
-        f'@remove="props.removeAtIndex(props.index)">{{{{ {name} }}}}</q-chip>'
+        f'@remove="props.removeAtIndex(props.index)">'
+        f"{{{{ {names}[{index}] ?? props.opt.label }}}}"
+        f"<q-tooltip>{{{{ {tips}[{index}] }}}}</q-tooltip>"
+        "</q-chip>"
     )
 
 
@@ -39,7 +51,8 @@ class OutputsMenuWidget(BaseWidget):
     """A multiple select of the outputs in ``gamepad_outputs.OUTPUTS``, saved as ``"a, b"``.
 
     The menu lists each output by its label (``Left stick (x, y)``); a chosen one shows as a chip
-    with its outlet name (``left_stick_vec``). The select takes input only in edit mode.
+    with its outlet name (``left_stick_vec``), and hovering the chip shows the label and the
+    outlet's type. The select takes input only in edit mode.
     """
 
     def build(self) -> Any:
