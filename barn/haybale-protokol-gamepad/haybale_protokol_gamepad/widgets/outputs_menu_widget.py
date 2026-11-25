@@ -11,6 +11,12 @@ from nicegui import ui
 
 from haybale_protokol_gamepad.gamepad_outputs import CHOICES, OUTPUTS, join_names, names
 
+#: Lets the chips wrap onto more lines, the field growing with them. Node cards and the settings
+#: panel are ``compact-fields``, whose CSS fixes every field's control at
+#: ``var(--hw-compact-field-h)`` (26px), so a second row of chips was clipped. The variable is
+#: set on this select alone, so only its own field grows.
+WRAP_CHIPS_STYLE = "--hw-compact-field-h: auto"
+
 #: A quiet chip, like the gate chips (design guide §1.3).
 _CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
 
@@ -57,7 +63,7 @@ class OutputsMenuWidget(BaseWidget):
 
     def build(self) -> Any:
         select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
-        select.props("use-chips")
+        select.props("use-chips").style(WRAP_CHIPS_STYLE)
         select.add_slot("selected-item", chip_template())
         stamp_requires(select, LevelMode.EDIT)
         return self.bind(select, converter=OutputListConverter())

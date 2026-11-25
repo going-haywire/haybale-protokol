@@ -72,6 +72,12 @@ def gate_tone(state: ProtokolState, name: str, protocol: str, direction: str) ->
 #: may arrive bare.
 _NAME = "(props.opt.label ?? props.opt)"
 
+#: Lets the chips wrap onto more lines, the field growing with them. Node cards and the settings
+#: panel are ``compact-fields``, whose CSS fixes every field's control at
+#: ``var(--hw-compact-field-h)`` (26px), so a second row of chips was clipped. The variable is
+#: set on this select alone, so only its own field grows.
+WRAP_CHIPS_STYLE = "--hw-compact-field-h: auto"
+
 #: A quiet chip (design guide §1.3): surface background, body text; the state is a dot.
 _CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
 _DOT_STYLE = (
@@ -124,7 +130,7 @@ class GateMenuWidget(BaseWidget):
             options=list(self._options), value=[] if self._multiple else None, **select_options(properties)
         ).classes("w-full text-xs")
         if self._multiple:
-            select.props("use-chips")
+            select.props("use-chips").style(WRAP_CHIPS_STYLE)
         stamp_requires(select, LevelMode.EDIT)
         return self.bind(select, converter=GateListConverter(multiple=self._multiple))
 
