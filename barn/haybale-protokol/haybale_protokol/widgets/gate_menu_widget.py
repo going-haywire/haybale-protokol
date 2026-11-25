@@ -135,16 +135,25 @@ class GateMenuWidget(BaseWidget):
         self._multiple = bool(properties.get("multiple", True))
         state = _state()
         self._options = state.gate_choices(self._protocol, self._direction) if state is not None else []
-        select = ui.select(
-            options=list(self._options), value=[] if self._multiple else None, **select_options(properties)
-        ).classes("w-full text-xs")
-        if self._multiple:
-            select.props("use-chips").style(WRAP_CHIPS_STYLE)
-        stamp_requires(select, LevelMode.EDIT)
-        return self.bind(select, converter=GateListConverter(multiple=self._multiple))
+        # A plain wrapper is the widget's root: core stamps the declared size box (MIN_WIDTH) on the
+        # root as a DOM attribute, and on a select NiceGUI hands it to Quasar, which puts it on an
+        # inner element, out of reach of core's containment rule.
+        with ui.element("div").classes("w-full") as root:
+            select = ui.select(
+                options=list(self._options),
+                value=[] if self._multiple else None,
+                **select_options(properties),
+            ).classes("w-full text-xs")
+            if self._multiple:
+                select.props("use-chips").style(WRAP_CHIPS_STYLE)
+            stamp_requires(select, LevelMode.EDIT)
+            self._select: ui.select | None = self.bind(
+                select, converter=GateListConverter(multiple=self._multiple)
+            )
+        return root
 
     def on_model_changed(self, value: Any) -> None:
-        element = self.ui_element
+        element = getattr(self, "_select", None) if self.ui_element is not None else None
         if element is not None:
             selected = gate_names(PrimitiveUnwrappingConverter().to_view(value) or "")
             options = merged_options(self._options, selected)

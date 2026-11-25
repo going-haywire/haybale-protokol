@@ -71,8 +71,12 @@ class OutputsMenuWidget(BaseWidget):
     """
 
     def build(self) -> Any:
-        select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
-        select.props("use-chips").style(WRAP_CHIPS_STYLE)
-        select.add_slot("selected-item", chip_template())
-        stamp_requires(select, LevelMode.EDIT)
-        return self.bind(select, converter=OutputListConverter())
+        # A plain wrapper is the root, as in the gate widget: core stamps the declared size box
+        # (MIN_WIDTH) on the root, and on a select it would land on an inner element.
+        with ui.element("div").classes("w-full") as root:
+            select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
+            select.props("use-chips").style(WRAP_CHIPS_STYLE)
+            select.add_slot("selected-item", chip_template())
+            stamp_requires(select, LevelMode.EDIT)
+            self.bind(select, converter=OutputListConverter())
+        return root
