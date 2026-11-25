@@ -11,7 +11,7 @@ PlayStation, B on Nintendo), ``b`` the right, ``x`` the left, ``y`` the top.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -101,11 +101,6 @@ def names(text: str | None) -> list[str]:
         if name and name not in found:
             found.append(name)
     return found
-
-
-def join_names(chosen: Iterable[str]) -> str:
-    """``chosen`` as one setting value, ``"a, b"``."""
-    return ", ".join(names(",".join(chosen)))
 
 
 def selected(text: str | None) -> list[Output]:

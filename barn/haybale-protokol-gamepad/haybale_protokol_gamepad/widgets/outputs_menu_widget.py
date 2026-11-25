@@ -5,31 +5,18 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from haywire.api import BaseWidget, PrimitiveUnwrappingConverter, widget
+from haywire.api import BaseWidget, widget
 from haywire.api.workbench import LevelMode, stamp_requires
 from nicegui import ui
 
-from haybale_protokol_gamepad.gamepad_outputs import CHOICES, OUTPUTS, join_names, names
-
-#: Lets the chips wrap onto more lines, the field growing with them. Node cards and the settings
-#: panel are ``compact-fields``, whose CSS fixes every field's control at
-#: ``var(--hw-compact-field-h)`` (26px), so a second row of chips was clipped. The variable is
-#: set on this select alone, so only its own field grows.
-WRAP_CHIPS_STYLE = "--hw-compact-field-h: auto"
-
-#: A quiet chip, like the gate chips (design guide §1.3).
-_CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
-
-
-class OutputListConverter(PrimitiveUnwrappingConverter):
-    """Text ``"a, b"`` in the port; a list of output names in the select."""
-
-    def to_view(self, model_value: Any) -> Any:
-        value = super().to_view(model_value)
-        return names(value if isinstance(value, str) else None)
-
-    def to_model(self, view_value: Any) -> Any:
-        return join_names(view_value or [])
+from haybale_protokol.chips import (
+    CHIP_FIELD_MIN_WIDTH,
+    CHIP_STYLE,
+    NameListConverter,
+    chip_field_root,
+    wrap_chips,
+)
+from haybale_protokol_gamepad.gamepad_outputs import CHOICES, OUTPUTS
 
 
 def chip_template() -> str:
@@ -44,7 +31,7 @@ def chip_template() -> str:
     tips = json.dumps([f"{output.label} · {output.type_name}" for output in OUTPUTS])
     index = "props.opt.value"
     return (
-        f'<q-chip dense square removable :tabindex="props.tabindex" style="{_CHIP_STYLE}" '
+        f'<q-chip dense square removable :tabindex="props.tabindex" style="{CHIP_STYLE}" '
         f'@remove="props.removeAtIndex(props.index)">'
         f"{{{{ {names}[{index}] ?? props.opt.label }}}}"
         f"<q-tooltip>{{{{ {tips}[{index}] }}}}</q-tooltip>"
@@ -52,15 +39,9 @@ def chip_template() -> str:
     )
 
 
-#: The narrowest the field makes its node, as for the gate field: declared, its width stops coming
-#: from its content (``contain: inline-size``), so a manually sized node can be narrower than all its
-#: chips in one row; its height still follows the chips as they wrap.
-MIN_WIDTH = 160
-
-
 @widget(
     description="Pick a gamepad node's outputs as chips; each becomes an outlet, in the order picked",
-    min_width=MIN_WIDTH,
+    min_width=CHIP_FIELD_MIN_WIDTH,
 )
 class OutputsMenuWidget(BaseWidget):
     """A multiple select of the outputs in ``gamepad_outputs.OUTPUTS``, saved as ``"a, b"``.
@@ -71,12 +52,10 @@ class OutputsMenuWidget(BaseWidget):
     """
 
     def build(self) -> Any:
-        # A plain wrapper is the root, as in the gate widget: core stamps the declared size box
-        # (MIN_WIDTH) on the root, and on a select it would land on an inner element.
-        with ui.element("div").classes("w-full") as root:
+        with chip_field_root() as root:  # the root core's size box reaches (see haybale_protokol.chips)
             select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
-            select.props("use-chips").style(WRAP_CHIPS_STYLE)
+            wrap_chips(select)
             select.add_slot("selected-item", chip_template())
             stamp_requires(select, LevelMode.EDIT)
-            self.bind(select, converter=OutputListConverter())
+            self.bind(select, converter=NameListConverter())
         return root
