@@ -27,3 +27,14 @@ def test_converter_keeps_text_in_the_port() -> None:
     assert converter.to_view("a, left_stick_vec, a") == ["a", "left_stick_vec"]
     assert converter.to_model(["dpad_vec", "b"]) == "dpad_vec, b"
     assert converter.to_model(None) == ""
+
+
+def test_chip_fields_do_not_floor_their_node_at_one_row() -> None:
+    """Declared ``min_width``: core contains the field's inline size, so a node sized by hand can be
+    narrower than all its chips in one row, and the chips wrap (live check round 3, wrap_shrink)."""
+    from haybale_protokol.widgets.gate_menu_widget import GateMenuWidget
+    from haybale_protokol_gamepad.widgets.outputs_menu_widget import OutputsMenuWidget
+
+    for widget_cls in (OutputsMenuWidget, GateMenuWidget):
+        assert widget_cls.class_identity.min_width == 160, widget_cls.__name__
+        assert widget_cls.class_identity.min_height is None, "height still follows the wrapped chips"

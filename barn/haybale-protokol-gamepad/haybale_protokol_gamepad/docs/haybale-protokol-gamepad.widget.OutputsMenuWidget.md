@@ -6,6 +6,7 @@ Pick a gamepad node's outputs as chips; each becomes an outlet, in the order pic
 
 ## Details
 
+- **min_width**: `160`
 
 ## Notes
 

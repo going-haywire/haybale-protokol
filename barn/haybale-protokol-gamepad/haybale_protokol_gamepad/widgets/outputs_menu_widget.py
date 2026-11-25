@@ -52,7 +52,16 @@ def chip_template() -> str:
     )
 
 
-@widget(description="Pick a gamepad node's outputs as chips; each becomes an outlet, in the order picked")
+#: The narrowest the field makes its node, as for the gate field: declared, its width stops coming
+#: from its content (``contain: inline-size``), so a manually sized node can be narrower than all its
+#: chips in one row; its height still follows the chips as they wrap.
+MIN_WIDTH = 160
+
+
+@widget(
+    description="Pick a gamepad node's outputs as chips; each becomes an outlet, in the order picked",
+    min_width=MIN_WIDTH,
+)
 class OutputsMenuWidget(BaseWidget):
     """A multiple select of the outputs in ``gamepad_outputs.OUTPUTS``, saved as ``"a, b"``.
 

@@ -100,7 +100,16 @@ def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
     )
 
 
-@widget(description="Pick gates as chips from the gates that fit the node, each coloured by its state")
+#: The narrowest the field makes its node. Declared, the field's width stops coming from its content
+#: (``contain: inline-size``): otherwise a manually sized node can never be narrower than all its chips
+#: in one row. Its height still follows the chips as they wrap.
+MIN_WIDTH = 160
+
+
+@widget(
+    description="Pick gates as chips from the gates that fit the node, each coloured by its state",
+    min_width=MIN_WIDTH,
+)
 class GateMenuWidget(BaseWidget):
     """A select of gates; its behaviour is set by plain properties, as the port saves them.
 
