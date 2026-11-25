@@ -3,7 +3,8 @@
 import pytest
 
 from haybale_protokol.gate_names import gate_names, join_gate_names
-from haybale_protokol.widgets.gate_menu_widget import GateListConverter, merged_options
+from haybale_protokol.chips import NameListConverter
+from haybale_protokol.widgets.gate_menu_widget import merged_options
 
 
 @pytest.mark.parametrize(
@@ -19,7 +20,7 @@ def test_join_gate_names() -> None:
 
 
 def test_converter_round_trip() -> None:
-    converter = GateListConverter()
+    converter = NameListConverter()
     assert converter.to_view("a, b") == ["a", "b"]
     assert converter.to_view(None) == []
     assert converter.to_model(["b", "a"]) == "b, a"
@@ -142,7 +143,7 @@ def test_properties_drive_the_select(properties: dict[str, object], multiple: bo
 
 
 def test_single_gate_converter() -> None:
-    converter = GateListConverter(multiple=False)
+    converter = NameListConverter(multiple=False)
     assert converter.to_view("a, b") == "a"
     assert converter.to_view("") is None
     assert converter.to_model("a") == "a"

@@ -6,6 +6,7 @@ Pick gates as chips from the gates that fit the node, each coloured by its state
 
 ## Details
 
+- **min_width**: `160`
 
 ## Notes
 

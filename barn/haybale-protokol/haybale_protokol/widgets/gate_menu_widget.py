@@ -9,7 +9,14 @@ from haywire.api.workbench import LevelMode, get_library_state_container, stamp_
 from haywire.api import BaseWidget, PrimitiveUnwrappingConverter, widget
 from nicegui import ui
 
-from haybale_protokol.gate_names import gate_names, join_gate_names
+from haybale_protokol.chips import (
+    CHIP_FIELD_MIN_WIDTH,
+    CHIP_STYLE,
+    NameListConverter,
+    chip_field_root,
+    wrap_chips,
+)
+from haybale_protokol.gate_names import gate_names
 from haybale_protokol.states.protokol_state import ProtokolState
 
 Tone = Literal["success", "warning", "danger"]
@@ -20,26 +27,6 @@ _TONE_CLASS: dict[str, str] = {
     "warning": "hw-text-warning",
     "danger": "hw-text-danger",
 }
-
-
-class GateListConverter(PrimitiveUnwrappingConverter):
-    """Text ``"a, b"`` in the port; a list of names in the select (one name when not ``multiple``)."""
-
-    def __init__(self, *, multiple: bool = True) -> None:
-        super().__init__()
-        self.multiple = multiple
-
-    def to_view(self, model_value: Any) -> Any:
-        value = super().to_view(model_value)
-        names = gate_names(value if isinstance(value, str) else None)
-        if self.multiple:
-            return names
-        return names[0] if names else None
-
-    def to_model(self, view_value: Any) -> Any:
-        if isinstance(view_value, str):
-            view_value = [view_value]
-        return join_gate_names(view_value or [])
 
 
 def merged_options(options: list[str], selected: list[str]) -> list[str]:
@@ -72,8 +59,7 @@ def gate_tone(state: ProtokolState, name: str, protocol: str, direction: str) ->
 #: may arrive bare.
 _NAME = "(props.opt.label ?? props.opt)"
 
-#: A quiet chip (design guide §1.3): surface background, body text; the state is a dot.
-_CHIP_STYLE = "background-color: var(--hw-bg-elevated); color: var(--hw-text-body)"
+#: The state dot inside a chip (the chip itself is the quiet ``CHIP_STYLE``).
 _DOT_STYLE = (
     "display: inline-block; width: 6px; height: 6px; border-radius: 50%; "
     "background: currentColor; margin-right: 4px; flex-shrink: 0"
@@ -89,12 +75,15 @@ def chip_template(tones: dict[str, Tone], *, removable: bool = True) -> str:
     if not removable:
         return f'<span class="row items-center no-wrap">{dot}{label}</span>'
     return (
-        f'<q-chip dense square removable :tabindex="props.tabindex" style="{_CHIP_STYLE}" '
+        f'<q-chip dense square removable :tabindex="props.tabindex" style="{CHIP_STYLE}" '
         f'@remove="props.removeAtIndex(props.index)">{dot}{label}</q-chip>'
     )
 
 
-@widget(description="Pick gates as chips from the gates that fit the node, each coloured by its state")
+@widget(
+    description="Pick gates as chips from the gates that fit the node, each coloured by its state",
+    min_width=CHIP_FIELD_MIN_WIDTH,
+)
 class GateMenuWidget(BaseWidget):
     """A select of gates; its behaviour is set by plain properties, as the port saves them.
 
@@ -120,16 +109,22 @@ class GateMenuWidget(BaseWidget):
         self._multiple = bool(properties.get("multiple", True))
         state = _state()
         self._options = state.gate_choices(self._protocol, self._direction) if state is not None else []
-        select = ui.select(
-            options=list(self._options), value=[] if self._multiple else None, **select_options(properties)
-        ).classes("w-full text-xs")
-        if self._multiple:
-            select.props("use-chips")
-        stamp_requires(select, LevelMode.EDIT)
-        return self.bind(select, converter=GateListConverter(multiple=self._multiple))
+        with chip_field_root() as root:  # the root core's size box reaches (see haybale_protokol.chips)
+            select = ui.select(
+                options=list(self._options),
+                value=[] if self._multiple else None,
+                **select_options(properties),
+            ).classes("w-full text-xs")
+            if self._multiple:
+                wrap_chips(select)
+            stamp_requires(select, LevelMode.EDIT)
+            self._select: ui.select | None = self.bind(
+                select, converter=NameListConverter(multiple=self._multiple)
+            )
+        return root
 
     def on_model_changed(self, value: Any) -> None:
-        element = self.ui_element
+        element = getattr(self, "_select", None) if self.ui_element is not None else None
         if element is not None:
             selected = gate_names(PrimitiveUnwrappingConverter().to_view(value) or "")
             options = merged_options(self._options, selected)

@@ -32,6 +32,23 @@ def _isolated_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         os.environ["HOME"] = previous
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _no_real_sdl() -> Iterator[None]:
+    """Keep the real SDL out of the suite: the gamepad driver sees no pad unless a test plugs one.
+
+    The device watch and the refresh button list every device protocol, so without this a test
+    run on a machine with a pad would see it. The hardware tests put the real SDL back.
+    """
+    import haybale_protokol_gamepad.driver as gamepad_driver
+    from tests.gamepad.fake_sdl import FakeBackend
+
+    saved = gamepad_driver.backend_factory
+    gamepad_driver.backend_factory = FakeBackend
+    yield
+    gamepad_driver.stop_pump()
+    gamepad_driver.backend_factory = saved
+
+
 @pytest.fixture(scope="session")
 def library_system(project_root: Path, _isolated_home: Path) -> Iterator[Any]:
     """A fully initialised library system with this repo's haybales loaded."""
