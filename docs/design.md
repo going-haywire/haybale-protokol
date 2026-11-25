@@ -241,6 +241,12 @@ Spikes ran against haywire-core in haywire-repo's venv; nothing in haywire-repo 
 2. **macOS gamepads.** `SDL_Init(GAMECONTROLLER)` and an `SDL_PollEvent` loop on a
    background thread run without error (pysdl2-dll 2.32.10), with and without
    `SDL_HINT_JOYSTICK_THREAD`. Not yet tested with a pad connected; finish in Plan 5.
+   *2026-11-25, Linux:* with an Xbox 360 pad, one background pump thread for the whole process
+   (decided by the owner: it lives in the driver module, since SDL has one event queue per
+   process) lists pads, opens them, reads their events and rumbles them. macOS with a pad
+   connected is still unconfirmed.
+   Device ids (decided by the owner): a pad's SDL GUID, and `<guid>#2`, `#3`… for further pads
+   of the same model, in SDL's device order. Neither pad here reports a serial number.
 3. **`ADD` pins.** Core never turns a grown pin back into `ADD`. The node does it: user edge
    deletion (`RemoveElementsAction`, `release_pins=True`) calls `BaseNode.release_pins`, its
    undo calls `restore_pins`, and both are part of the same undo step. Ports also offer
