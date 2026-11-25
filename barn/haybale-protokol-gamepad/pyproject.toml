@@ -13,7 +13,15 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 
 # CANON — pip requirements. Add third-party packages and sibling haybales here.
-dependencies = ["haywire-core>=0.6.0", "haybale-core>=0.6.0", "haybale-protokol", "pysdl2==0.9.17", "pysdl2-dll==2.32.10"]
+dependencies = [
+    "haywire-core>=0.6.0",
+    "haybale-core>=0.6.0",
+    "haybale-protokol",
+    # 0.9.8 added SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS and SDL_HINT_JOYSTICK_THREAD.
+    "pysdl2>=0.9.8",
+    # SDL 2.0.22, the first with a macOS universal2 (Apple Silicon) wheel and the joystick-thread hint.
+    "pysdl2-dll>=2.0.22.post1",
+]
 
 # The key is the entry-point name (unique within the group; need not match the
 # library id). The value is <module>:<class>.

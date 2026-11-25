@@ -48,7 +48,8 @@ path = "../haywire-repo/barn/haybale-haystack"
 editable = true
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-timeout", "ruff==0.12.12", "mypy==2.1.0"]
+# pytest-timeout 1.x imports distutils, which Python 3.12 dropped.
+dev = ["pytest>=8", "pytest-timeout>=2.0", "ruff==0.12.12", "mypy==2.1.0"]
 
 [tool.ruff]
 line-length = 109

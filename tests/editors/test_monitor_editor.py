@@ -191,11 +191,14 @@ async def test_line_export_only_that_line(
     from nicegui import ui
 
     downloads: list[tuple[bytes, str]] = []
-    monkeypatch.setattr(
-        ui.download,
-        "content",
-        lambda content, filename=None, media_type="": downloads.append((content, filename)),
-    )
+
+    def record(content: bytes, filename: str | None = None, media_type: str = "") -> None:
+        downloads.append((content, filename or ""))
+
+    monkeypatch.setattr(ui.download, "content", record)
+    # nicegui before 3.19 puts the User's own download object in `ui.download` on each
+    # access to the User, so the patch above would miss; patch that object too.
+    monkeypatch.setattr(user.download, "content", record, raising=False)
     editor = await _monitor(user, protokol, selection)
     user.find(marker="monitor-visibility-in").click()
     user.find(marker="monitor-visibility-out").click()
