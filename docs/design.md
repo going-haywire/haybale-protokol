@@ -190,6 +190,28 @@ Receive filters on `axis`, `button`, `hat` or `all`, index or any: axis → `val
 duration) on the gamepad's two-way gate. SDL2's GameController API gives one layout for
 hundreds of pads and stable GUIDs for the Device list.
 
+> **Superseded in part (2026-11-25, decided by the owner during the slice's live checks).** The
+> Receive filter above became one **Outputs** field; the rest stands.
+
+- **Outputs**: one multi-select field of chips, like the gate field. Each chip is one outlet, in
+  the order picked: sticks whole (`left_stick_vec`, VEC2F) or by axis (`left_stick_x`, FLOAT),
+  triggers (FLOAT 0…1), the d-pad (`dpad_vec`, VEC2I) and every button by name (BOOL). A chip
+  shows its outlet name, and its label and type on hover. Why: a raw axis index gave half a
+  stick, and fusing x and y took two nodes and could tear.
+- **One moment**: every message from a pad carries the pad's whole state, so all outlets are read
+  from the same moment, and Drop mode loses nothing for sticks, triggers and the d-pad.
+- **Fires on a change at the outlet**: the node fires only when a value leaving one of its outlets
+  changes, after shaping; a stick moving inside its dead zone fires nothing. A `changed` outlet
+  names the first chosen output whose value changed.
+- **Shaping**, settings on the node: a radial **Dead zone** (default 0.2; pads rest a little off
+  centre) and **Y up** (default on: up is positive; off gives SDL's and the screen's down-positive).
+- **Face buttons by position** on every brand (`a` is the bottom one; SDL's
+  `GAMECONTROLLER_USE_BUTTON_LABELS` hint set to 0), so a graph behaves alike on Xbox,
+  PlayStation and Nintendo pads.
+- **Status** is a setting on both gamepad nodes: off the card by default, promotable to a row or
+  an outlet, never saved. MIDI and OSC follow in their own pull request.
+- Gyro, accelerometer, touchpad, LEDs, trigger rumble and battery level are left for a later slice.
+
 ### 6.5 Art-Net
 
 No gates and no nodes in this version: they need their own design round and research into how
