@@ -128,6 +128,68 @@ def test_y_up_and_dead_zone_apply(graph: BaseGraph, tmp_path: Path, sdl: FakeBac
     assert y == pytest.approx(0.996, abs=0.01)
 
 
+def test_only_a_value_leaving_an_outlet_fires(graph: BaseGraph, tmp_path: Path, sdl: FakeBackend) -> None:
+    """Moving inside the dead zone changes no outlet, so nothing fires and nothing is 'changed'."""
+    wrapper = _receive(graph, "right_stick_x, right_stick_y")
+    wrapper.node.shaping.dead_zone = 0.2
+    wrapper.node.dispatch.queue_mode = "Block (every message)"
+    runs = record(wrapper, "right_stick_x", "right_stick_y", "changed")
+    with protokol_project(tmp_path, PAD_GATE) as state:
+        pad = _plug(sdl, state)
+        with running(graph):
+            assert wait_until(lambda: len(runs) >= 1)  # the start value
+            runs.clear()
+            sdl.move(pad, 2, 3000)  # inside the dead zone: both outlets stay 0
+            sdl.move(pad, 2, -4000)  # still inside
+            sdl.move(pad, 2, 0)  # back to the centre
+            sdl.move(pad, 3, 32767)  # y fully: leaves the dead zone, x stays 0
+            sdl.move(pad, 3, 32767 - 1)  # y moves a little
+            sdl.move(pad, 3, 0)  # y back: both 0 again
+            assert wait_until(lambda: len(runs) >= 3)
+    assert [r["changed"] for r in runs] == ["right_stick_y", "right_stick_y", "right_stick_y"]
+    assert [r["right_stick_x"] for r in runs] == [0.0, 0.0, 0.0], "x never left the dead zone"
+
+
+def test_changed_names_what_changed_at_the_outlet(
+    graph: BaseGraph, tmp_path: Path, sdl: FakeBackend
+) -> None:
+    """A radial dead zone rescales x when y pushes the stick out: x's outlet changes too."""
+    wrapper = _receive(graph, "right_stick_y, right_stick_x")
+    wrapper.node.shaping.dead_zone = 0.2
+    wrapper.node.dispatch.queue_mode = "Block (every message)"
+    wrapper.node.dispatch.start_value = "Off"
+    runs = record(wrapper, "right_stick_x", "changed")
+    with protokol_project(tmp_path, PAD_GATE) as state:
+        pad = _plug(sdl, state)
+        with running(graph):
+            assert wait_until(lambda: _listening(wrapper))
+            sdl.move(pad, 2, -4000)  # x inside the dead zone: nothing
+            sdl.move(pad, 3, 32767)  # y out: y and x both change; y comes first in Outputs
+            assert wait_until(lambda: len(runs) >= 1)
+    assert [r["changed"] for r in runs] == ["right_stick_y"]
+    assert runs[0]["right_stick_x"] < 0
+
+
+def test_start_value_off_still_notes_the_state_at_open(
+    graph: BaseGraph, tmp_path: Path, sdl: FakeBackend
+) -> None:
+    """A stick resting off centre at open, then moving inside the dead zone, fires nothing."""
+    wrapper = _receive(graph, "left_stick_vec, a")
+    wrapper.node.shaping.dead_zone = 0.2
+    wrapper.node.dispatch.start_value = "Off"
+    runs = record(wrapper, "changed")
+    pad = FakePad()
+    pad.axes[0] = -6000  # resting at −0.18
+    with protokol_project(tmp_path, PAD_GATE) as state:
+        _plug(sdl, state, pad)
+        with running(graph):
+            assert wait_until(lambda: _listening(wrapper))
+            sdl.move(pad, 0, -5000)
+            sdl.press(pad, 0)
+            assert wait_until(lambda: len(runs) >= 1)
+    assert [r["changed"] for r in runs] == ["a"]
+
+
 def test_receives_every_button_press(graph: BaseGraph, tmp_path: Path, sdl: FakeBackend) -> None:
     wrapper = _receive(graph, "a, y")
     runs = record(wrapper, "a", "y", "changed")

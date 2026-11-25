@@ -29,7 +29,6 @@ from haybale_protokol_gamepad.gamepad_outputs import (
     DEFAULT,
     Output,
     Shaping,
-    changes,
     is_event,
     selected,
     unknown,
@@ -53,7 +52,7 @@ GATE_HELP = (
 )
 OUTPUTS_HELP = (
     "What to read from the pad: each chosen output becomes an outlet, in the order chosen, and the "
-    "flow runs when any of them changes. Sticks as a vector (left_stick_vec, VEC2F) or one axis "
+    "flow runs when one of their values changes. Sticks as a vector (left_stick_vec, VEC2F) or one axis "
     "(left_stick_x, FLOAT), triggers 0…1, the d-pad as a vector (dpad_vec, VEC2I), and each button "
     "(BOOL). Face buttons go by position on every brand: a is the bottom one. All outlets are read "
     "from the same moment, so a stick's x and y always belong together."
@@ -70,15 +69,16 @@ OUTPUTS_HELP = (
 class GamepadEventNode(BaseNode):
     """Runs its flow when one of its chosen outputs changes on its gates.
 
-    Outputs is the node's filter: each output chosen is one outlet, and the flow runs when any of
-    them changes, with every outlet read from the pad's state at that moment. Sticks, triggers and
+    Outputs is the node's filter: each output chosen is one outlet, and the flow runs when the
+    value leaving one of them changes (after the dead zone: a stick moving inside it fires
+    nothing), with every outlet read from the pad's state at that moment. Sticks, triggers and
     the d-pad fire their value when the graph starts, and keep only the newest change when the flow
     runs behind; with a button among the outputs, every press and release is kept.
 
     Outputs:
         received: Control flow for each change of a chosen output
         from_gate: The gate the change came in on
-        changed: Which chosen output changed
+        changed: The first chosen output, in their order, whose outlet value changed
         (one outlet per chosen output): sticks VEC2F or FLOAT, triggers FLOAT 0…1, the d-pad VEC2I,
             buttons BOOL
     """
@@ -123,6 +123,8 @@ class GamepadEventNode(BaseNode):
         self._outputs: tuple[Output, ...] = tuple(self._chosen())
         """The chosen outputs, read by the Line's thread; replaced whole under ``_lock``."""
         self._start_value = False
+        self._last: dict[str, dict[str, Any]] = {}
+        """The values each gate's outlets last took, by output name; guarded by ``_lock``."""
         self._subscribe()
         self._show_unknown()
 
@@ -174,6 +176,8 @@ class GamepadEventNode(BaseNode):
         )
         node_id = self.node_id
         self._start_value = start_value
+        with self._lock:
+            self._last = {}
 
         def fire(payload: dict[str, Any]) -> None:
             context.emit_callback(event_name=node_id, payload=payload)
@@ -214,27 +218,35 @@ class GamepadEventNode(BaseNode):
             return None
         self.out("from_gate", payload["gate"])
         self.out("changed", payload["changed"])
-        shaping = Shaping(float(self.shaping.dead_zone or 0.0), bool(self.shaping.y_up))
-        axes, buttons = payload["state"]
-        for output in self._outputs:
-            if output.name in self.ports:
-                self.out(output.name, value(output, axes, buttons, shaping))
+        for name, out_value in payload["values"].items():
+            if name in self.ports:
+                self.out(name, out_value)
         self.report.status = self._status()
         return "received"
 
     def _accept(self, message: Message, gate: str) -> dict[str, Any] | None:
-        """On the Line's thread: a payload when ``message`` changed a chosen output."""
+        """On the Line's thread: a payload when an outlet's value would change.
+
+        Values are compared as they leave the outlets, after the dead zone: a stick moving
+        inside it changes nothing and fires nothing. ``changed`` names the first chosen output,
+        in their order, whose value changed.
+        """
         state = message.extra.get("state")
         if state is None:
             return None
-        if message.extra.get("initial") and not self._start_value:
-            return None  # the pad's state when its Line opened: a start value
+        shaping = Shaping(float(self.shaping.dead_zone or 0.0), bool(self.shaping.y_up))
+        axes, buttons = state
         with self._lock:
-            outputs = self._outputs
-        hit = next((output for output in outputs if changes(output, message)), None)
-        if hit is None:
+            values = {output.name: value(output, axes, buttons, shaping) for output in self._outputs}
+            last = self._last.setdefault(gate, {})
+            changed = [name for name, now in values.items() if name not in last or last[name] != now]
+            last.clear()
+            last.update(values)
+        if message.extra.get("initial") and not self._start_value:
+            return None  # the pad's state when its Line opened: noted, but only a start value fires it
+        if not changed:
             return None
-        return {"gate": gate, "changed": hit.name, "state": state}
+        return {"gate": gate, "changed": changed[0], "values": values}
 
     def _status(self) -> str:
         parts = [named_status(binding.gate_name, binding.status) for binding in self._bindings]

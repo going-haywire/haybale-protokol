@@ -32,8 +32,9 @@ graph restarts. On a machine where SDL cannot start, every gamepad gate reports
 ## Outputs
 
 Gamepad Event has one **Outputs** field: pick what to read as chips, and each chip becomes an
-outlet, in the order picked. The flow runs when any of them changes, and every outlet is read
-from the pad's state at that same moment, so a stick's x and y always belong together.
+outlet, in the order picked. The flow runs when the value leaving one of these outlets changes,
+and every outlet is read from the pad's state at that same moment, so a stick's x and y always
+belong together. A stick moving inside its dead zone changes no outlet, so it fires nothing.
 
 | Outputs | Outlet | Values |
 |---|---|---|
@@ -47,7 +48,8 @@ from the pad's state at that same moment, so a stick's x and y always belong tog
 | dpad_up, dpad_down, dpad_left, dpad_right | BOOL | the d-pad as four buttons |
 | paddle1–paddle4, touchpad | BOOL | Elite and Edge paddles, the PlayStation touchpad press |
 
-**From gate** says which gate a change came from, **Changed** which chosen output changed.
+**From gate** says which gate a change came from, **Changed** the first chosen output (in the
+order picked) whose outlet value changed.
 
 Settings (in the properties, promotable):
 

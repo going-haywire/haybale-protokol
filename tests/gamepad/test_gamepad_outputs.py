@@ -9,7 +9,6 @@ from haybale_protokol_gamepad.gamepad_outputs import (
     BY_NAME,
     CHOICES,
     Shaping,
-    changes,
     is_event,
     selected,
     stick,
@@ -45,18 +44,6 @@ def test_selected_keeps_the_order_and_drops_unknown() -> None:
     assert [o.name for o in selected(text)] == ["a", "left_stick_vec", "right_trigger"]
     assert unknown(text) == ["nope"]
     assert selected("") == []
-
-
-def test_which_messages_change_an_output() -> None:
-    assert changes(BY_NAME["left_stick_vec"], gm.axis(1, 5, 0.0))
-    assert changes(BY_NAME["left_stick_x"], gm.axis(1, 5, 0.0)), "x is read with y: it may move with it"
-    assert not changes(BY_NAME["left_stick_vec"], gm.axis(2, 5, 0.0))
-    assert changes(BY_NAME["right_trigger"], gm.axis(5, 5, 0.0))
-    assert changes(BY_NAME["a"], gm.button(0, True, 0.0))
-    assert not changes(BY_NAME["a"], gm.button(1, True, 0.0))
-    assert changes(BY_NAME["dpad_vec"], gm.hat(0, 1, 0.0))
-    assert not changes(BY_NAME["dpad_vec"], gm.button(11, True, 0.0)), "the hat message follows"
-    assert changes(BY_NAME["dpad_up"], gm.button(11, True, 0.0))
 
 
 def test_buttons_are_events() -> None:

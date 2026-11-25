@@ -17,7 +17,6 @@ from typing import Any
 
 from haywire.api import Vec2f, Vec2i
 
-from haybale_protokol.drivers import Message
 from haybale_protokol_gamepad.gamepad_messages import BUTTONS, DPAD, dpad_hat
 
 
@@ -117,16 +116,6 @@ def selected(text: str | None) -> list[Output]:
 def unknown(text: str | None) -> list[str]:
     """The names in ``text`` that are no output."""
     return [name for name in names(text) if name not in BY_NAME]
-
-
-def changes(output: Output, message: Message) -> bool:
-    """Whether ``message`` changed ``output``: an axis or button it is made of, or the d-pad."""
-    kind, index = message.extra.get("kind"), message.extra.get("index")
-    if kind == "axis":
-        return index in output.axes
-    if kind == "button":
-        return index in output.buttons
-    return kind == "hat" and output.hat
 
 
 def is_event(output: Output) -> bool:
