@@ -6,7 +6,7 @@ description = "Gamepads for haybale-protokol: Device gates, Gamepad Event and Se
 keywords = ["gamepad", "game controller", "control", "protocol", "device"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
-version = "0.0.1"
+version = "0.0.9"
 
 # ── authored here ────────────────────────────────────────────────────────────
 requires-python = ">=3.12"
@@ -21,6 +21,7 @@ dependencies = [
     "pysdl2>=0.9.8",
     # SDL 2.0.22, the first with a macOS universal2 (Apple Silicon) wheel and the joystick-thread hint.
     "pysdl2-dll>=2.0.22.post1",
+    "nicegui",
 ]
 
 # The key is the entry-point name (unique within the group; need not match the

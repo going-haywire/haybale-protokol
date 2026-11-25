@@ -89,7 +89,17 @@ main thread: SDL starts and polls there without error (design §8.1), but it is 
 confirmed with a pad plugged in.
 
 <!-- marketstall:share-url:start -->
-*Subscribe URL not yet published — run `uv run --frozen haywire share --bump patch`.*
+Always the latest (tracks the current branch):
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/master/marketstall.toml
+```
+
+Frozen to this version:
+
+```sh
+https://github.com/going-haywire/haybale-protokol/blob/v0.0.9/marketstall.toml
+```
 <!-- marketstall:share-url:end -->
 
 Gamepads for haybale-protokol: Device gates, Gamepad Event and Send Rumble nodes

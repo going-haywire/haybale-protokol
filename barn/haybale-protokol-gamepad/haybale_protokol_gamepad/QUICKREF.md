@@ -1,4 +1,4 @@
-# haybale-protokol-gamepad — component index (v0.0.1)
+# haybale-protokol-gamepad — component index (v0.0.9)
 
 ## node
 - `haybale-protokol-gamepad:node:GamepadEventNode` — Gamepad Event — Triggered when one of its chosen sticks, triggers, d-pad or buttons changes  _tags: gamepad, game controller, joystick, receive, stick, button, protokol_
