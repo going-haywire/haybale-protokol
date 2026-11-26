@@ -1,4 +1,4 @@
-# haybale-protokol-osc — component index (v0.0.9)
+# haybale-protokol-osc — component index (v0.0.10)
 
 ## node
 - `haybale-protokol-osc:node:OscEventNode` — OSC Event — Triggered for each OSC message on an input gate that matches the address pattern  _tags: osc, receive, control, network, protokol, touchosc_

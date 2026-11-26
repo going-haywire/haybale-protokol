@@ -6,7 +6,7 @@ description = "OSC for haybale-protokol: UDP and TCP gates, OSC Event and Send O
 keywords = ["osc", "control", "protocol", "network"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
-version = "0.0.9"
+version = "0.0.10"
 
 # ── authored here ────────────────────────────────────────────────────────────
 requires-python = ">=3.12"

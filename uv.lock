@@ -690,7 +690,7 @@ requires-dist = [
 
 [[package]]
 name = "haybale-protokol"
-version = "0.0.9"
+version = "0.0.10"
 source = { editable = "barn/haybale-protokol" }
 dependencies = [
     { name = "haywire-core" },
@@ -754,7 +754,7 @@ dev = [
 
 [[package]]
 name = "haybale-protokol-gamepad"
-version = "0.0.9"
+version = "0.0.10"
 source = { editable = "barn/haybale-protokol-gamepad" }
 dependencies = [
     { name = "haybale-core" },
@@ -777,7 +777,7 @@ requires-dist = [
 
 [[package]]
 name = "haybale-protokol-midi"
-version = "0.0.9"
+version = "0.0.10"
 source = { editable = "barn/haybale-protokol-midi" }
 dependencies = [
     { name = "haybale-core" },
@@ -798,7 +798,7 @@ requires-dist = [
 
 [[package]]
 name = "haybale-protokol-osc"
-version = "0.0.9"
+version = "0.0.10"
 source = { editable = "barn/haybale-protokol-osc" }
 dependencies = [
     { name = "haybale-core" },
