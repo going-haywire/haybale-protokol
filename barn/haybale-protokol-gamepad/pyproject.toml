@@ -14,7 +14,7 @@ license = {text = "MIT"}
 
 # CANON — pip requirements. Add third-party packages and sibling haybales here.
 dependencies = [
-    "haywire-core>=0.6.0",
+    "haywire-core>=0.6.5",
     "haybale-core>=0.6.0",
     "haybale-protokol",
     # 0.9.8 added SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS and SDL_HINT_JOYSTICK_THREAD.

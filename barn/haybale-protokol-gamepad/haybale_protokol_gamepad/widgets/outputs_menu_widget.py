@@ -13,8 +13,6 @@ from haybale_protokol.chips import (
     CHIP_FIELD_MIN_WIDTH,
     CHIP_STYLE,
     NameListConverter,
-    chip_field_root,
-    wrap_chips,
 )
 from haybale_protokol_gamepad.gamepad_outputs import CHOICES, OUTPUTS
 
@@ -52,10 +50,8 @@ class OutputsMenuWidget(BaseWidget):
     """
 
     def build(self) -> Any:
-        with chip_field_root() as root:  # the root core's size box reaches (see haybale_protokol.chips)
-            select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
-            wrap_chips(select)
-            select.add_slot("selected-item", chip_template())
-            stamp_requires(select, LevelMode.EDIT)
-            self.bind(select, converter=NameListConverter())
-        return root
+        select = ui.select(options=dict(CHOICES), value=[], multiple=True).classes("w-full text-xs")
+        select.props("use-chips")
+        select.add_slot("selected-item", chip_template())
+        stamp_requires(select, LevelMode.EDIT)
+        return self.bind(select, converter=NameListConverter())
