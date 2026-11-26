@@ -13,7 +13,7 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 
 # CANON — pip requirements. Add third-party packages and sibling haybales here.
-dependencies = ["haywire-core>=0.6.0", "nicegui>=3.18.0", "tomlkit>=0.13"]
+dependencies = ["haywire-core>=0.6.5", "nicegui>=3.18.0", "tomlkit>=0.13"]
 
 # The key is the entry-point name (unique within the group; need not match the
 # library id). The value is <module>:<class>.

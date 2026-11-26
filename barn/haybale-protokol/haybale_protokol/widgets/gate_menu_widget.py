@@ -13,8 +13,6 @@ from haybale_protokol.chips import (
     CHIP_FIELD_MIN_WIDTH,
     CHIP_STYLE,
     NameListConverter,
-    chip_field_root,
-    wrap_chips,
 )
 from haybale_protokol.gate_names import gate_names
 from haybale_protokol.states.protokol_state import ProtokolState
@@ -109,23 +107,19 @@ class GateMenuWidget(BaseWidget):
         self._multiple = bool(properties.get("multiple", True))
         state = _state()
         self._options = state.gate_choices(self._protocol, self._direction) if state is not None else []
-        with chip_field_root() as root:  # the root core's size box reaches (see haybale_protokol.chips)
-            select = ui.select(
-                options=list(self._options),
-                value=[] if self._multiple else None,
-                **select_options(properties),
-            ).classes("w-full text-xs")
-            if self._multiple:
-                wrap_chips(select)
-            stamp_requires(select, LevelMode.EDIT)
-            self._select: ui.select | None = self.bind(
-                select, converter=NameListConverter(multiple=self._multiple)
-            )
-        return root
+        select = ui.select(
+            options=list(self._options),
+            value=[] if self._multiple else None,
+            **select_options(properties),
+        ).classes("w-full text-xs")
+        if self._multiple:
+            select.props("use-chips")
+        stamp_requires(select, LevelMode.EDIT)
+        return self.bind(select, converter=NameListConverter(multiple=self._multiple))
 
     def on_model_changed(self, value: Any) -> None:
-        element = getattr(self, "_select", None) if self.ui_element is not None else None
-        if element is not None:
+        element = self.ui_element
+        if isinstance(element, ui.select):
             selected = gate_names(PrimitiveUnwrappingConverter().to_view(value) or "")
             options = merged_options(self._options, selected)
             if options != list(element.options):

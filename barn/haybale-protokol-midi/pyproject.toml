@@ -14,7 +14,7 @@ license = {text = "MIT"}
 
 # CANON — pip requirements. Add third-party packages and sibling haybales here.
 dependencies = [
-    "haywire-core>=0.6.0",
+    "haywire-core>=0.6.5",
     "haybale-core>=0.6.0",
     "haybale-protokol",
     # 1.5.7 is the first with Python 3.12 wheels; older ones build from source (C++, ALSA headers).
