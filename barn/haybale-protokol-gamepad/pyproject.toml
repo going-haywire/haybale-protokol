@@ -6,7 +6,7 @@ description = "Gamepads for haybale-protokol: Device gates, Gamepad Event and Se
 keywords = ["gamepad", "game controller", "control", "protocol", "device"]  # from haybale.tags
 
 # CANON, but owned by the release machinery — synced to haybale.toml
-version = "0.0.9"
+version = "0.0.10"
 
 # ── authored here ────────────────────────────────────────────────────────────
 requires-python = ">=3.12"
