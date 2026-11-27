@@ -1,4 +1,4 @@
-"""MonitorEditor — live traffic on Lines, filtered, with test-send and export (EDIT tab).
+"""MonitorEditor — live traffic on Lines, filtered, with test-send and export (INFO tab).
 
 Each ticked source is a tap: a Line user that only appends to a bounded buffer, so watching
 never slows a Line. The table is redrawn at most every ``MONITOR_REFRESH_S`` from the taps,
@@ -44,7 +44,7 @@ MONITOR_ROWS = 300
 @editor(
     label="Monitor",
     icon=ProtokolIcon.monitor,
-    default_slot=SlotName.EDIT,
+    default_slot=SlotName.INFO,
     opens="on_context",
     requires=AccessTier.VIEW,
     description="Live traffic on Lines",

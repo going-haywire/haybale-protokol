@@ -1,4 +1,4 @@
-"""The Monitor (EDIT tab): taps on Lines, a bounded and filtered view, test-send, export."""
+"""The Monitor (INFO tab): taps on Lines, a bounded and filtered view, test-send, export."""
 
 from pathlib import Path
 from typing import Any
@@ -10,6 +10,7 @@ from haybale_protokol.editors.monitor_editor import MONITOR_ROWS, MonitorEditor
 from haybale_protokol.gates import Gate, gate_file_path, load_gates
 from haybale_protokol.states.protokol_selection import ProtokolSelection
 from haybale_protokol.states.protokol_state import LineUse, ProtokolState
+from haywire.api.workbench import SlotName
 from haywire.core.access import AccessTier
 from tests.editors.conftest import FormDriver, make_context, one, open_editor, set_value
 
@@ -33,6 +34,10 @@ def _rows(editor: Any) -> list[dict[str, Any]]:
 def test_requires_view_and_opens_on_context() -> None:
     assert MonitorEditor.class_identity.requires == AccessTier.VIEW
     assert str(MonitorEditor.class_identity.opens.value) == "on_context"
+
+
+def test_opens_in_the_bottom_tab_slot() -> None:
+    assert MonitorEditor.class_identity.default_slot is SlotName.INFO
 
 
 async def test_monitor_draws_a_bounded_window(

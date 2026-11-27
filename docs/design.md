@@ -107,7 +107,7 @@ control state is worse than none. A server gate accepts many peers; a send goes 
 | Editor | Slot | Shows |
 |---|---|---|
 | **Gates editor** | ACTION | the project's gates, each with its line and status; binds unbound gates |
-| **Monitor** | EDIT tab | live traffic on lines, filtered; test sends; export |
+| **Monitor** | INFO tab (bottom; EDIT until 2026-11-27) | live traffic on lines, filtered; test sends; export |
 | **Device editor** | CONTEXT | the device or line in the **Protokol selection** |
 
 The **Protokol selection** is a small per-session `SessionState`: selecting a gate or line,

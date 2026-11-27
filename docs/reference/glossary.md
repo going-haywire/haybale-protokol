@@ -43,7 +43,7 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Gates editor** | The ACTION-slot editor: the project's **Gates** with their **Gate health** above, the **Device pane** below. | endpoint editor, OSC editor |
-| **Monitor** | The EDIT-slot tab that shows, filters and logs live traffic on **Lines**, including **Lines** no **Gate** uses yet. | sniffer, traffic log, console |
+| **Monitor** | The INFO-slot tab (the bottom slot) that shows, filters and logs live traffic on **Lines**, including **Lines** no **Gate** uses yet. | sniffer, traffic log, console |
 | **Device pane** | The lower pane of the **Gates editor**: the **Gate**, **Device** or **Line** in the **Protokol selection**, or the **Device list**. Replaced the Device editor (design §10.4). | Device editor (removed), device panel, inspector |
 | **Protokol selection** | The **Gate**, **Line** or **Device** currently selected in one session; what the **Device pane** follows. | current gate, focus |
 
