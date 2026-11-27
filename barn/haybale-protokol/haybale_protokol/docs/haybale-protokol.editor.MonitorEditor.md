@@ -6,7 +6,7 @@ Live traffic on Lines
 
 ## Details
 
-- **default_slot**: `edit`
+- **default_slot**: `info`
 - **opens**: `OpenBehavior.ON_CONTEXT`
 - **order**: `100`
 
